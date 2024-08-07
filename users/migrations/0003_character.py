@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
+from django.conf import settings
 
 class Migration(migrations.Migration):
 
@@ -20,7 +21,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=50)),
                 ('stats', models.OneToOneField(on_delete=models.CASCADE, to='users.Stats')),
                 ('date_added', models.DateTimeField(auto_now_add=True)),
-                ('profile', models.ForeignKey(on_delete=models.DO_NOTHING, to='users.Profile')),
+                ('user', models.ForeignKey(on_delete=models.DO_NOTHING, to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'ordering': ('date_added',),

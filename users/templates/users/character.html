@@ -1,8 +1,8 @@
 {% extends "chat/base.html" %} {% load crispy_forms_tags %} {% block content %}
+{% load static %}
 <div class="content-section">
-  <form method="POST">
-    <input type="hidden" name="csrfmiddlewaretoken"
-      value="RCRkHtrK8TzYIjD0O2eqzI8UuYpvRapM7suUFdcy3wzZXvFJDrkd2vUGmJipjhUE">
+  <form method="POST" class="character-form">
+    {% csrf_token %}
     <fieldset class="form-group">
       <legend class="border-bottom mb-4">Create Character</legend>
 
@@ -13,12 +13,11 @@
               <div class="row mb-4">
                 <div class="col-md-4">
                   <div class="d-and-d-box gray noborder" style="margin-bottom: 13px;">
-                    <div class="d-and-d-faction-input"><label>Character name</label><input class="character-name" type="text" value="Johnatan">
+                    <div class="d-and-d-faction-input mx-auto"><label>Character name</label><input class="character-name bg-secondary text-light" type="text" value="Johnatan">
                     </div>
-                    <div class="d-and-d-image faction gy-10"><input type="file" id="d-and-d-image-factionImg"
-                        accept="image/*" style="display: none;"></div><br><br>
-                    <button class="btn bg-secondary text-light" type="submit" name="generate">Generate (it is
-                      recommended to set stats)</button>
+                    <div class="d-and-d-image faction gy-10"></div><input onchange="LoadFile(this)" type="file" id="d-and-d-image-factionImg"
+                    accept="image/*" style="display: none;"><br><br>
+                    <button type="button" class="btn bg-secondary text-light generate-btn" name="generate">Generate (it usually takes ~30 secs)</button>
                   </div>
                 </div>
                 <div class="col-md-9 pr-2 pl-2">
@@ -301,9 +300,77 @@
 
         </div>
       </div>
-      <button class="btn btn-outline-info" type="submit" name="create">Create</button>
+      <button class="btn btn-outline-info create-btn" type="submit" name="create">Create</button>
     </fieldset>
 
   </form>
 </div>
 {% endblock content %}
+{% block js_scripts %}
+<script src="{% static 'characters/sheet.js' %}"></script>
+<script>
+  curData["custom_class"] = {{custom_class|safe}};
+  curData["custom_race"] = {{custom_race|safe}};
+  curData["level"] = {{level|safe}};
+  curData["stre"] = {{stre|safe}};
+  curData["dex"] = {{dex|safe}};
+  curData["cos"] = {{cos|safe}};
+  curData["inte"] = {{inte|safe}};
+  curData["wis"] = {{wis|safe}};
+  curData["cha"] = {{cha|safe}};
+  curData["stre_down"] = {{stre_down|safe}};
+  curData["dex_down"] = {{dex_down|safe}};
+  curData["cos_down"] = {{cos_down|safe}};
+  curData["inte_down"] = {{inte_down|safe}};
+  curData["wis_down"] = {{wis_down|safe}};
+  curData["cha_down"] = {{cha_down|safe}};
+  curData["proficiency_bonus"] = {{proficiency_bonus|safe}};
+  curData["passive_perception"] = {{passive_perception|safe}};
+  curData["stre_saving"] = {{stre_saving|safe}};
+  curData["dex_saving"] = {{dex_saving|safe}};
+  curData["cos_saving"] = {{cos_saving|safe}};
+  curData["inte_saving"] = {{inte_saving|safe}};
+  curData["wis_saving"] = {{wis_saving|safe}};
+  curData["cha_saving"] = {{cha_saving|safe}};
+  curData["acrobatics"] = {{acrobatics|safe}};
+  curData["animals"] = {{animals|safe}};
+  curData["arcana"] = {{arcana|safe}};
+  curData["athletics"] = {{athletics|safe}};
+  curData["deception"] = {{deception|safe}};
+  curData["history"] = {{history|safe}};
+  curData["insight"] = {{insight|safe}};
+  curData["intimidation"] = {{intimidation|safe}};
+  curData["investigation"] = {{investigation|safe}};
+  curData["medicine"] = {{medicine|safe}};
+  curData["nature"] = {{nature|safe}};
+  curData["perception"] = {{perception|safe}};
+  curData["performance"] = {{performance|safe}};
+  curData["persuasion"] = {{persuasion|safe}};
+  curData["religion"] = {{religion|safe}};
+  curData["sleightofhand"] = {{sleightofhand|safe}};
+  curData["stealth"] = {{stealth|safe}};
+  curData["survival"] = {{survival|safe}};
+  curData["proficiencies"] = {{proficiencies|safe}};
+  curData["current_hit"] = {{current_hit|safe}};
+  curData["attacks_spellcasting"] = {{attacks_spellcasting|safe}};
+  curData["equipment"] = {{equipment|safe}};
+  curData["personality_traits"] = {{personality_traits|safe}};
+  curData["ideals"] = {{ideals|safe}};
+  curData["bonds"] = {{bonds|safe}};
+  curData["flaws"] = {{flaws|safe}};
+  curData["features_traits"] = {{features_traits|safe}};
+  curData["success"] = {{success|safe}};
+  curData["failure"] = {{failure|safe}};
+  curData["armour"] = {{armour|safe}};
+  curData["initiative"] = {{initiative|safe}};
+  curData["speed"] = {{speed|safe}};
+  curData["image"] = {{image|safe}};
+  curData["name"] = {{name|safe}};
+  curData["mode"] = {{mode|safe}};
+  loadData();
+  if (curData["mode"] == "edit"){
+      createBtn.innerHTML = "Save";
+      curData["char_id"] = {{char_id|safe}};
+  }
+</script>
+{% endblock %}

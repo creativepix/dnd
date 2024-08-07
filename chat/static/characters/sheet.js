@@ -10,6 +10,7 @@ var armourInput = $(".armour-input")[0];
 var initiativeInput = $(".initiative-input")[0];
 var speedInput = $(".speed-input")[0];
 var levelInput = $(".level-input")[0];
+var imgInput = $('#d-and-d-image-factionImg');
 
 var classes = {
     "Бард": [8],
@@ -25,16 +26,12 @@ var races = {
     "Дварф": []
 }
 
-i = 0;
 for (const customSubclass in classes){
-    customClass.innerHTML += '<option value="' + i + '">' + customSubclass + '</option>';
-    i += 1;
+    customClass.innerHTML += '<option value="' + customSubclass + '">' + customSubclass + '</option>';
 }
 
-i = 0;
 for (const customSubrace in races){
-    customRace.innerHTML += '<option value="' + i + '">' + customSubrace + '</option>';
-    i += 1;
+    customRace.innerHTML += '<option value="' + customSubrace + '">' + customSubrace + '</option>';
 }
 
 var mainstat2skills = [
@@ -57,13 +54,14 @@ bonds = $(".bonds")[0];
 flaws = $(".flaws")[0];
 featuresTraits = $(".features-traits")[0];
 characterName = $(".character-name")[0];
-curData = {}
+var curData = {};
+
 function updateData(){
-    curData["character_name"] = characterName.value;
+    curData["name"] = characterName.value;
     curData["custom_class"] = $(customClass).find('option:selected')[0].innerHTML;
     curData["custom_race"] = $(customRace).find('option:selected')[0].innerHTML;
     curData["level"] = parseInt(levelInput.value);
-    var stats = ["str", "dex", "cos", "int", "wis", "cha"]
+    var stats = ["stre", "dex", "cos", "inte", "wis", "cha"]
     i = 0;
     for (var stat of stats){
         curData[stat] = parseInt($(mainStats[i]).find(".d-and-d-statbox-modifier")[0].innerHTML);
@@ -75,7 +73,7 @@ function updateData(){
         i += 1;
     }
     curData["proficiency_bonus"] = proficiencyInput.value;
-    curData["perception"] = perceptionInput.value;
+    curData["passive_perception"] = perceptionInput.value;
     i = 0;
     for (var stat of stats){
         curData[stat + "_saving"] = parseInt($(savingThrows[i]).find("input")[0].value);
@@ -99,16 +97,29 @@ function updateData(){
     curData["bonds"] = bonds.value;
     curData["flaws"] = flaws.value;
     curData["features_traits"] = featuresTraits.value;
-    curData["success"] = $($(".d-and-d-save-success")[0]).find(".d-and-d-skill-circle .active").length;
-    curData["failure"] = $($(".d-and-d-save-failure")[0]).find(".d-and-d-skill-circle .active").length;
+    curData["success"] = $($(".d-and-d-save-success")[0]).find(".d-and-d-skill-circle.active").length;
+    curData["failure"] = $($(".d-and-d-save-failure")[0]).find(".d-and-d-skill-circle.active").length;
+    curData["armour"] = armourInput.value;
+    curData["initiative"] = initiativeInput.value;
+    curData["speed"] = speedInput.value;
+
+    const backgroundImage = $('.d-and-d-image')[0].style.backgroundImage;
+    const match = backgroundImage.match(/url\("data:image\/[a-zA-Z]+;base64,([^\"]+)"\)/);
+    if (match && match[1]) {
+        const base64Image = match[1];
+        curData["image"] = base64Image;
+    } else {
+        curData["image"] = "";
+        console.log('No base64 image found');
+    }
 }
 
 function loadData(){
-    characterName.value = curData["character_name"];
+    characterName.value = curData["name"];
     $(customClass).val(curData["custom_class"]);
     $(customRace).val(curData["custom_race"]);
     levelInput.value = curData["level"];
-    var stats = ["str", "dex", "cos", "int", "wis", "cha"]
+    var stats = ["stre", "dex", "cos", "inte", "wis", "cha"]
     i = 0;
     for (var stat of stats){
         $(mainStats[i]).find(".d-and-d-statbox-modifier")[0].innerHTML = curData[stat];
@@ -120,7 +131,7 @@ function loadData(){
         i += 1;
     }
     proficiencyInput.value = curData["proficiency_bonus"];
-    perceptionInput.value = curData["perception"];
+    perceptionInput.value = curData["passive_perception"];
     i = 0;
     for (var stat of stats){
         $(savingThrows[i]).find("input")[0].value = curData[stat + "_saving"];
@@ -149,6 +160,14 @@ function loadData(){
     }
     for (let step = 0; step < curData["failure"]; step++) {
         $($($(".d-and-d-save-failure")[0]).find(".d-and-d-skill-circle")[step]).addClass("active");
+    }
+
+    armourInput.value = curData["armour"];
+    initiativeInput.value = curData["initiative"];
+    speedInput.value = curData["speed"];
+
+    if (curData["image"]){
+        $('.d-and-d-image')[0].style.backgroundImage = "url(data:image/png;base64," + curData["image"] + ")";
     }
 }
 
@@ -181,7 +200,6 @@ for (const mainStat of mainStats){
     i += 1;
 }
 
-
 function levelChanged(e){
     var inp = $(this);
     level = parseInt(inp.val());
@@ -205,3 +223,89 @@ function circleClick(circleElem){
 for (const circle of $(".d-and-d-skill-circle")){
     $(circle).on('click', circleClick(circle));
 }
+
+$('.d-and-d-image').on('click', function() {
+    imgInput.trigger('click');
+});
+
+function LoadFile(e) {
+    const [file] = e.files;
+    if (file) {        
+        const FR = new FileReader();
+        FR.addEventListener("load", function(evt) {
+            $('.d-and-d-image')[0].style.backgroundImage = "url(" + evt.target.result + ")";
+        });
+        FR.readAsDataURL(file);
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+async function generateImg() {
+    generateBtn.hide();
+    const url = window.location.href;
+    updateData();
+    let data = new FormData();
+    data.append("all_data", JSON.stringify(curData));
+    data.append("generate", "true");
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: data
+        });
+
+        if (response.ok) {
+            const jsonResponse = await response.json();
+            $('.d-and-d-image')[0].style.backgroundImage = "url(data:image/png;base64," + jsonResponse["img_b64"] + ")";
+        } else {
+            console.error('Error:', response.statusText);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+    generateBtn.show();
+}
+
+var createBtn = $(".create-btn")[0];
+
+var generateBtn = $(".generate-btn");
+generateBtn.on('click', generateImg);
+
+var characterForm = $(".character-form");
+characterForm.on('submit', function(event) {
+    event.preventDefault();
+    updateData();
+
+    let formData = new FormData(event.target);
+    formData.append("all_data", JSON.stringify(curData));
+    formData.append("create", "True");
+
+    let xhr = new XMLHttpRequest();
+    xhr.open('POST', '/profile/', true);
+
+    xhr.onload = function () {
+        window.location.href = '/profile';
+        if (xhr.status != 200) {
+            console.error('Form submission failed:', xhr.statusText);
+        }
+    };
+
+    xhr.send(formData);
+});

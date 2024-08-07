@@ -15,9 +15,51 @@
     <div class="form-group">
       <button name="update-profile" class="btn btn-outline-info" type="submit">Update</button>
     </div>
+    <fieldset class="form-group">
+      <legend class="border-bottom mb-4">Characters</legend>
+      {% for character in characters %}
+        <div class="media content-section">
+          <img class="rounded-circle article-img" src="../media/{{ character.image }}">
+          <div class="media-body">
+            <p class="article-content">{{ character.name }}</p>
+            <button type="button" class="btn btn-outline-info" onclick="editCharacter({{character.id}})">Edit</button>
+            <button type="button" class="btn btn-outline-info" onclick="deleteCharacter({{character.id}})">Delete</button>
+          </div>
+        </div>
+      {% endfor %}
+    </fieldset>
     <div class="form-group">
       <button name="add-character" class="btn btn-outline-info" type="submit">Add Character</button>
     </div>
   </form>
 </div>
 {% endblock content %}
+{% block js_scripts %}
+<script>
+function redirectWithPost(url, data) {
+  var form = document.createElement('form');
+  form.innerHTML += '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">';
+  form.method = 'POST';
+  form.action = url;
+  for (var key in data) {
+      if (data.hasOwnProperty(key)) {
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = data[key];
+          form.appendChild(input);
+      }
+  }
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function editCharacter(charId){
+  redirectWithPost(window.location.href, {"edit": "true", "char_id": charId});
+}
+
+function deleteCharacter(charId){
+  redirectWithPost(window.location.href, {"delete": "true", "char_id": charId});
+}
+</script>
+{% endblock %}
