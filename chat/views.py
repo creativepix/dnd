@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from .forms import RoomForm
 from .models import Message, Room
 
+from users.models import Character
 
 @login_required()
 def chat_home(request):
@@ -17,7 +18,10 @@ def chat_home(request):
         messages.success(request, f"Joined: {room_name}")
         return render(request, 'chat/chatroom.html', {'room_name': room_name, 'title': room_name, 'db_messages': db_messages})
 
-    return render(request, 'chat/index.html', {'form': form})
+    characters = []
+    for character in request.user.character_set.all():
+        characters.append({'id': character.id, 'name': character.name, 'image': character.image})
+    return render(request, 'chat/index.html', {'form': form, 'characters': characters})
 
 
 @login_required

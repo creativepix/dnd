@@ -77,5 +77,5 @@ class StatsCreateFormValues:
 
 class CharacterCreateFormValues:
     def __init__(self):
-        self.name = ""
+        self.name = "Johnatan"
         self.image = ""

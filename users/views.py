@@ -43,8 +43,8 @@ def profile(request):
                 data[key] = val if isinstance(val, int) else f'"{val}"'
             for key, val in character.items():
                 data[key] = val if isinstance(val, int) else f'"{val}"'
-            data["mode"] = "create"
-            data["char_id"] = ""
+            data["mode"] = "'create'"
+            data["char_id"] = "''"
             return render(request, 'users/character.html', data)
         elif "generate" in request.POST:
             all_data = json.loads(request.POST["all_data"])

@@ -8,11 +8,50 @@
       </legend>
       {{ form|crispy }}
     </fieldset>
-    <div class="form-group">
-      <button class="btn btn-outline-info" type="submit">
-        Start Blabbering 🦜!
-      </button>
+  <div>
+    <div class="dropdown">
+      <div class="btn btn-outline-info choose-char-btn">Choose character</div>
+      <div class="dropdown-content">
+        {% for character in characters %}
+        <div class="content-section" id="{{character.id}}">
+          <img class="rounded-circle article-img" src="media/{{character.image}}">
+          <p class="article-content">{{character.name}}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <button class="btn btn-outline-info start-btn" type="submit">
+      Go to adventures 🦜!
+    </button>
+  </div>
     </div>
   </form>
 </div>
 {% endblock content %}
+{% block js_scripts %}
+<script>
+var selectedCharacter = '';
+var chooseCharBtn = $(".choose-char-btn")[0];
+var chosenInd = -1;
+
+$('.dropdown-content .content-section').on('click', function() {
+    selectedCharacter = $(this).find('.article-content').text();
+    imgCharacter = $(this).find('.article-img').attr('src');
+
+    chooseCharBtn.innerHTML = '<div class="container"><div class="row"><div class="col-xs"><img class="rounded-circle article-img" src="' + imgCharacter + '"></div><div class="col-xs page-hero d-flex align-items-center justify-content-center">' + selectedCharacter + '</div></div></div>'
+    $(".start-btn")[0].style.height = $(".dropdown").height() + "px";
+    chosenInd = $(this).attr('id');
+
+    $('.dropdown-content').hide();
+    $('.dropdown').trigger("mouseover");
+});
+
+$('.dropdown').hover(function () {
+    $('.dropdown-content').show();
+}, 
+function () {
+    $('.dropdown-content').hide();
+});
+
+</script>
+{% endblock %}
