@@ -1,0 +1,78 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    
+    <link href="{% static 'characters/sheet1.css' %}" rel="stylesheet">
+    <link href="{% static 'characters/sheet2.css' %}" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="{% static 'chat/main.css' %}">
+
+    {% if title %}
+        <title>Django Chat App - {{ title }}</title>
+    {% else %}
+        <title>Django Chat App</title>
+    {% endif %}
+
+    {% block head_content %}{% endblock %}
+</head>
+<body>
+    <header class="site-header">
+      <nav class="navbar navbar-expand-md navbar-dark bg-steel fixed-top">
+        <div class="container">
+          <a class="navbar-brand mr-4" href="{% url 'chat-home' %}">Django Chat App</a>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarToggle" aria-controls="navbarToggle" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarToggle">
+            <div class="navbar-nav mr-auto">
+              <a class="nav-item nav-link" href="{% url 'chat-home' %}">Home</a>
+            </div>
+            <!-- Navbar Right Side -->
+            <div class="navbar-nav">
+              {% if user.is_authenticated %}
+              <img width="50px" class="rounded-circle" style="max-height: 40px; max-width: 40px;" src="{{user.profile.image.url}}">
+                <a class="nav-item nav-link" href="{% url 'profile' %}"> Profile</a>
+                <form action="{% url 'logout' %}" method="POST">
+                  {% csrf_token %}
+                  <a class="nav-item nav-link" href="javascript:;" onclick="this.parentNode.submit()">Logout</a>
+                </form>
+              {% else %}
+                <a class="nav-item nav-link" href="{% url 'login' %}">Login</a>
+                <a class="nav-item nav-link" href="{% url 'register' %}">Register</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+    <main role="main" class="container">
+      <div class="row">
+        <div class="col-md-15 mx-auto">
+          {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                </div>
+            {% endfor %}  
+          {% endif %}
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <script src="{% static 'characters/sheet.js' %}"></script>
+</body>
+</html>
