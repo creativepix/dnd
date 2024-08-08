@@ -19,7 +19,7 @@
       <legend class="border-bottom mb-4">Characters</legend>
       {% for character in characters %}
         <div class="media content-section">
-          <img class="rounded-circle article-img" src="../media/{{ character.image }}">
+          <img class="rounded-circle article-img" src="..{{ character.image.url }}">
           <div class="media-body">
             <p class="article-content">{{ character.name }}</p>
             <button type="button" class="btn btn-outline-info" onclick="editCharacter({{character.id}})">Edit</button>

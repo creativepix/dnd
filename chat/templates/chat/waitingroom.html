@@ -1,0 +1,120 @@
+{% extends "chat/base.html" %} {% load crispy_forms_tags %} {% block content %}
+<div class="content-section">
+    <h3 class="text-center">{{room.name}}</h3>
+    <div id="chat-log-container" 
+        class="container bg-light p-3 rounded-sm border rounded overflow-auto"
+        style="height: 480px; overflow-y:auto">
+        <div id="chat-log">
+            {% for w in db_waitings %}
+            <div class="media content-section">
+                <img class="rounded-circle article-img" src="{{w.character.image.url}}" />
+                <div class="media-body">
+                    <div class="article-metadata text-center">
+                        <span class="mr-2"> {{w.character.name}}  </span>
+                    </div>
+                    <div class="checkbox-wrapper-8 checkbox-waiting-other-size">
+                      <input id="checked-character-{{w.character_id}}" class="tgl tgl-skewed" type="checkbox" disabled {% if w.is_ready %}checked{% endif %}>
+                      <label class="tgl-btn" data-tg-off="Not ready" data-tg-on="Ready"></label>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            <script>
+                let myDiv = document.getElementById("chat-log-container");
+                myDiv.scrollTop = myDiv.scrollHeight;
+            </script>
+        </div>
+    </div>
+    <br />
+    <div class="bottom-area">
+    <div class="my-checkbox-ready checkbox-wrapper-8 checkbox-waiting-init-size text-center">
+      <input class="tgl tgl-skewed" id="cb3-8" type="checkbox" onchange="checkCurrentCharacter(this)" {% if is_ready %}checked{% endif %}/>
+      <label class="tgl-btn" data-tg-off="Not ready" data-tg-on="Ready" for="cb3-8"></label>
+    </div>
+    
+  </div>
+        
+    {% block scripts %} 
+    {{ room.name|json_script:"room-name" }}
+    {{ request.user.username|json_script:"user-name" }}
+    {{ character.image.url|json_script:"character-image" }}
+    <script>
+        const bottomArea = document.querySelector(".bottom-area");
+        const roomName = JSON.parse(
+          document.getElementById('room-name').textContent
+        );
+        const userName = JSON.parse(
+          document.getElementById('user-name').textContent
+        );
+        const characterImage = JSON.parse(
+          document.getElementById('character-image').textContent
+        );
+        
+        const waitingSocket = new WebSocket(
+          'ws://' + window.location.host + '/ws/waiting/' + roomName + '/' + {{ character.id }} + '/'
+        );
+
+        function visualizeGenerating(){
+          let html = '<div class="atom-spinner mx-auto">';
+            html += '  <div class="spinner-inner">';
+            html += '    <div class="spinner-line"></div>';
+            html += '    <div class="spinner-line"></div>';
+            html += '    <div class="spinner-line"></div>';
+            html += '    <!--Chrome renders little circles malformed :(-->';
+            html += '    <div class="spinner-circle">●</div>';
+            html += '  </div>';
+            html += '</div>';
+        bottomArea.innerHTML = html;
+        }
+        
+        waitingSocket.onmessage = function (e) {
+          const data = JSON.parse(e.data);
+          console.log(data);
+          if (data.type == "connected") {
+            let html =  '<div class="media content-section">';
+                html += '    <img class="rounded-circle article-img" src="' + data.character_image + '" />';
+                html += '    <div class="media-body">';
+                html += '        <div class="article-metadata text-center">';
+                html += '            <span class="mr-2"> ' + data.character_name + ' </span>';
+                html += '        </div>';
+                html += '        <div class="checkbox-wrapper-8 checkbox-waiting-other-size">';
+                html += '          <input id="checked-character-' + data.character_id + '" class="tgl tgl-skewed" type="checkbox" disabled>';
+                html += '          <label class="tgl-btn" data-tg-off="Not ready" data-tg-on="Ready"></label>';
+                html += '        </div>';
+                html += '    </div>';
+                html += '</div>';
+            document.querySelector('#chat-log').innerHTML += html;
+        
+            let myDiv = document.getElementById("chat-log-container");
+            myDiv.scrollTop = myDiv.scrollHeight;
+          } else if (data.type == "check"){
+              document.querySelector('#checked-character-' + data.character_id).checked = data.state;
+          } else if (data.type == "everyone_ready"){
+            visualizeGenerating();
+          } else {
+            console.log(data);
+          }
+            
+        };
+        
+        waitingSocket.onclose = function (e) {
+          console.error('Chat socket closed unexpectedly');
+        };
+
+        function checkCurrentCharacter(e){
+          console.log(e.checked);
+          waitingSocket.send(
+            JSON.stringify({
+              "type": "check",
+              "state": e.checked,
+            })
+          );
+        }
+
+        if ('{{room.is_waiting}}' == 'False'){
+          visualizeGenerating();
+        }
+    </script>
+    {% endblock scripts %}
+</div>
+{% endblock content %}

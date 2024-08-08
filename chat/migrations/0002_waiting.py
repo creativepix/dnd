@@ -11,14 +11,13 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Message',
+            name='Waiting',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('username', models.CharField(max_length=50)),
-                ('room', models.CharField(max_length=50)),
-                ('message_content', models.TextField()),
+                ('room', models.ForeignKey(to='chat.room', on_delete=models.CASCADE)),
+                ('character', models.ForeignKey(to='users.character', on_delete=models.CASCADE)),
                 ('date_added', models.DateTimeField(auto_now_add=True)),
-                ('profile_pic', models.ImageField(upload_to='')),
+                ('is_ready', models.BooleanField()),
             ],
             options={
                 'ordering': ('date_added',),

@@ -1,26 +1,23 @@
 from django.db import models
+from users.models import Character
 
-# Create your models here.
+class Room(models.Model):
+    name = models.CharField(max_length=50, primary_key=True)
+    characters = models.ManyToManyField(Character)
+    is_waiting = models.BooleanField()
 
+    def __str__(self):
+        return str(self.name)
 
-class Message(models.Model):
-    username = models.CharField(max_length=50)
-    room = models.CharField(max_length=50)
-    message_content = models.TextField()
+class Waiting(models.Model):
+    id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    character = models.ForeignKey(Character, on_delete=models.CASCADE)
     date_added = models.DateTimeField(auto_now_add=True)
-    profile_pic = models.ImageField()
+    is_ready = models.BooleanField()
 
     class Meta:
         ordering = ('date_added', )
 
     def __str__(self):
-        return f"{self.username}: {self.message_content}"
-
-
-class Room(models.Model):
-    name = models.CharField(max_length=50)
-    # for url
-    slug = models.CharField(max_length=50, unique=True)
-
-    def __str__(self):
-        return str(self.name)
+        return f"{self.room.name}: {self.character.id} {self.character.name} {self.is_ready}"

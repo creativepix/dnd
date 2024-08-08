@@ -8,33 +8,43 @@
       </legend>
       {{ form|crispy }}
     </fieldset>
-  <div>
-    <div class="dropdown">
-      <div class="btn btn-outline-info choose-char-btn">Choose character</div>
-      <div class="dropdown-content">
-        {% for character in characters %}
-        <div class="content-section" id="{{character.id}}">
-          <img class="rounded-circle article-img" src="media/{{character.image}}">
-          <p class="article-content">{{character.name}}</p>
+    <div>
+      {% if not characters %}
+      <p>It seems you dont have any character. Create a character in your <a href="/profile">profile</a></p>
+      {% else %}
+      <div class="dropdown">
+        <div class="btn btn-outline-info choose-char-btn">Choose character</div>
+        <div class="dropdown-content">
+          {% for character in characters %}
+          <div class="content-section" id="{{character.id}}">
+            <img class="rounded-circle article-img" src="{{character.image.url}}">
+            <p class="article-content">{{character.name}}</p>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
       </div>
+      {% endif %}
+      <input name="char_id" type="text" class="character-chosen-id" hidden>
+      <button class="btn btn-outline-info start-btn" type="submit">
+        Go to adventures 🦜!
+      </button>
     </div>
-    <button class="btn btn-outline-info start-btn" type="submit">
-      Go to adventures 🦜!
-    </button>
-  </div>
-    </div>
-  </form>
+</div>
+</form>
 </div>
 {% endblock content %}
 {% block js_scripts %}
 <script>
-var selectedCharacter = '';
-var chooseCharBtn = $(".choose-char-btn")[0];
-var chosenInd = -1;
+  var selectedCharacter = '';
+  var chooseCharBtn = $(".choose-char-btn")[0];
+  var chosenInd = -1;
 
-$('.dropdown-content .content-section').on('click', function() {
+  var startBtn = $(".start-btn");
+  startBtn.hide();
+
+  var characterChosenId = $(".character-chosen-id");
+
+  $('.dropdown-content .content-section').on('click', function () {
     selectedCharacter = $(this).find('.article-content').text();
     imgCharacter = $(this).find('.article-img').attr('src');
 
@@ -44,14 +54,17 @@ $('.dropdown-content .content-section').on('click', function() {
 
     $('.dropdown-content').hide();
     $('.dropdown').trigger("mouseover");
-});
 
-$('.dropdown').hover(function () {
+    startBtn.show();
+    characterChosenId[0].value = chosenInd;
+  });
+
+  $('.dropdown').hover(function () {
     $('.dropdown-content').show();
-}, 
-function () {
-    $('.dropdown-content').hide();
-});
+  },
+    function () {
+      $('.dropdown-content').hide();
+    });
 
 </script>
 {% endblock %}

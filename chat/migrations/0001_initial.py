@@ -8,15 +8,16 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
+        ('users', '0003_character'),
     ]
 
     operations = [
         migrations.CreateModel(
             name='Room',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=50)),
-                ('slug', models.CharField(max_length=50, unique=True)),
+                ('name', models.CharField(max_length=50, primary_key=True)),
+                ('characters', models.ManyToManyField(to='users.character')),
+                ('is_waiting', models.BooleanField()),
             ],
         ),
     ]

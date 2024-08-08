@@ -2,8 +2,9 @@ from openai import OpenAI
 from io import BytesIO
 import base64
 from PIL import Image
+from keys import OPENAI_API_KEY
 
-client = OpenAI()
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def generate_text(txt, system_txt=None, model="gpt-4o-mini"):
     messages = []
