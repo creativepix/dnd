@@ -21,7 +21,12 @@ def chat_home(request):
             room.save()
         else:
             room = room[0]
-        if room.is_waiting or room.characters.filter(id=character.id).exists():
+        print(room.name)
+        if room.characters.filter(user=request.user).exists() and character.id != room.characters.filter(user=request.user)[0].id:
+            messages.warning(request, "One of your characters is already in room")
+        elif room.is_waiting or room.characters.filter(id=character.id).exists():
+            if not room.is_waiting:
+                return redirect(f"/rooms/{room.name}")
             curwaiting = Waiting.objects.filter(room=room_name, character=character)
             is_ready = curwaiting.exists() and curwaiting[0].is_ready
             
@@ -39,13 +44,17 @@ def chat_home(request):
 
 
 @login_required
-def chat_room(request, room_name):
-    db_messages = []
-    #db_messages = Message.objects.filter(room=room_name)[:]
-
-    messages.success(request, f"Joined: {room_name}")
+def dnd_room(request, room_name):
+    #general chat is always first, in characters DM is first
+    room = Room.objects.get(name=room_name)
+    character = room.characters.filter(user=request.user)[0]
+    chats_data = list(zip(room.chat_set.all(), 
+                          [chat.characters.all() for chat in room.chat_set.all()], 
+                          [chat.message_set.all() for chat in room.chat_set.all()]))
+    chats_data = [{"chat": elem[0], "characters": elem[1], "messages": elem[2]} for elem in chats_data]
     return render(request, 'chat/chatroom.html', {
-        'room_name': room_name,
+        'room': room,
+        'chats_data': chats_data,
+        'character': character,
         'title': room_name,
-        'db_messages': db_messages,
     })

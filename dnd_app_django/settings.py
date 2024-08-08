@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
@@ -148,3 +149,7 @@ LOGIN_REDIRECT_URL = 'chat-home'
 
 LOGIN_URL = 'login'
 
+GRAPH_MODELS = {
+  'all_applications': True,
+  'group_models': True,
+}

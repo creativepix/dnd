@@ -1,4 +1,8 @@
-{% extends "chat/base.html" %} {% load crispy_forms_tags %} {% block content %}
+{% extends "chat/base.html" %} {% load crispy_forms_tags %}
+{% block head_content %}
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+{% endblock head_content %}
+{% block content %}
 <div class="content-section">
     <h3 class="text-center">{{room.name}}</h3>
     <div id="chat-log-container" 
@@ -60,7 +64,6 @@
             html += '    <div class="spinner-line"></div>';
             html += '    <div class="spinner-line"></div>';
             html += '    <div class="spinner-line"></div>';
-            html += '    <!--Chrome renders little circles malformed :(-->';
             html += '    <div class="spinner-circle">●</div>';
             html += '  </div>';
             html += '</div>';
@@ -91,6 +94,8 @@
               document.querySelector('#checked-character-' + data.character_id).checked = data.state;
           } else if (data.type == "everyone_ready"){
             visualizeGenerating();
+          } else if (data.type == "generation_ended"){
+            window.location.href = '/rooms/{{room.name}}';
           } else {
             console.log(data);
           }
@@ -102,7 +107,6 @@
         };
 
         function checkCurrentCharacter(e){
-          console.log(e.checked);
           waitingSocket.send(
             JSON.stringify({
               "type": "check",

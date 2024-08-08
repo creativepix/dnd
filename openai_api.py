@@ -2,7 +2,7 @@ from openai import OpenAI
 from io import BytesIO
 import base64
 from PIL import Image
-from keys import OPENAI_API_KEY
+from secret_data import OPENAI_API_KEY
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 

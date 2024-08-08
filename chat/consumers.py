@@ -5,12 +5,22 @@ from asgiref.sync import sync_to_async
 from channels.auth import login, logout
 from channels.generic.websocket import AsyncWebsocketConsumer
 from users.models import Character
-from .models import Room, Waiting
+from .models import Room, Waiting, Chat, Message
 from daphne.server import twisted_loop
+from dungeon_master import characterDM
+import itertools
     
 @sync_to_async
 def get_character(character_id):
     return Character.objects.get(id=character_id)
+    
+@sync_to_async
+def get_message(message_id):
+    return Message.objects.get(id=message_id)
+    
+@sync_to_async
+def get_chat(chat_id):
+    return Chat.objects.get(id=chat_id)
     
 @sync_to_async
 def get_room(room_name):
@@ -95,20 +105,28 @@ class WaitingConsumer(AsyncWebsocketConsumer):
                         'type': 'everyone_ready'
                     }
                 )
-                #await self.channel_layer.group_send(
-                #    self.room_group_name,
-                #    {
-                #        'type': 'generation_ended'
-                #    }
-                #)
                 loop = asyncio.get_event_loop()
                 loop.create_task(self.generate_scenario())
 
     async def generate_scenario(self):
         await asyncio.sleep(1) # to run generating on clients
         # scenarion generation
+        for _ in range(2 * 10 ** 7):
+            pass
         #TODO
+        await self.create_character_chats()
         
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'generation_ended'
+            }
+        )
+
+    async def generation_ended(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'generation_ended',
+        }))
 
     async def everyone_ready(self, event):
         await self.send(text_data=json.dumps({
@@ -138,6 +156,22 @@ class WaitingConsumer(AsyncWebsocketConsumer):
         }))
 
     @sync_to_async
+    def create_character_chats(self):
+        characters = [characterDM] + list(self.room.characters.all())
+        for char1, char2 in itertools.combinations(characters, 2):
+            chat = Chat(room=self.room)
+            chat.save()
+            chat.characters.add(char1)
+            chat.characters.add(char2)
+            chat.save()
+        
+        chat = Chat(room=self.room, is_general=True)
+        chat.save()
+        for char in characters:
+            chat.characters.add(char)
+        chat.save()
+
+    @sync_to_async
     def set_room_waiting_state(self, state):
         self.room.is_waiting = state
         self.room.save()
@@ -163,3 +197,65 @@ class WaitingConsumer(AsyncWebsocketConsumer):
         Waiting.objects.create(room=self.room, character=self.character, is_ready=False)
             
             
+
+class RoomConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        # Connect only if the user is authenticated
+        user = self.scope['user']
+
+        if user.is_authenticated:
+            self.room_name = self.scope['url_route']['kwargs']['room_name']
+            self.room_group_name = f"chat_{self.room_name}"
+            
+            self.character = await get_character(self.scope['url_route']['kwargs']['character_id'])
+            self.room = await get_room(self.room_name)
+
+            # Join room group
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            await self.accept()
+        else:
+            await self.send({"close": True})
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    async def receive(self, text_data):
+        text_data_json = json.loads(text_data)
+        if text_data_json["type"] == "send_message":
+            if not any(text_data_json["message"]):
+                return
+            chat = await get_chat(text_data_json["chat_id"])
+            message_text_data = await self.createMessage(chat, text_data_json["message"])
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'send_data',
+                    'data': message_text_data,
+                }
+            )
+        else:
+            print(text_data_json)
+    
+    async def send_data(self, event):
+        await self.send(text_data=event["data"])
+    
+    @sync_to_async
+    def createMessage(self, chat, content):
+        message = Message(chat=chat, character=self.character, content=content)
+        message.save()
+        text_data = json.dumps({
+            'type': 'message_received',
+            'content': message.content,
+            'character_id': message.character.id,
+            'character_name': message.character.name,
+            'character_image': message.character.image.url,
+            'date': message.date_added.strftime("%H:%M:%S"),
+            'chat_id': message.chat.id,
+        })
+        return text_data
