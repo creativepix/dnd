@@ -254,42 +254,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
-        elif text_data_json["type"] == "new_unseen_message":
-            await self.update_unseen_message_count(await get_chat(text_data_json["chat_id"]))
-            await self.send(text_data=json.dumps(
-                {"type": "update_unseen_message",
-                "chat2info": await self.get_chat2info()}))
-        elif text_data_json["type"] == "reset_unseen_message":
-            await self.reset_unseen_message_count(await get_chat(text_data_json["chat_id"]))
-            await self.send(text_data=json.dumps(
-                {"type": "update_unseen_message",
-                "chat2info": await self.get_chat2info()}))
         else:
             print(text_data_json)
     
     async def send_data(self, event):
         await self.send(text_data=event["data"])
-        
-    @sync_to_async
-    def get_chat2info(self):
-        chat2info = {}
-        for chat in self.room.chat_set.all():
-            chat2info[chat.id] = chat.get_info()
-        return chat2info
-        
-    @sync_to_async
-    def update_unseen_message_count(self, chat):
-        info = chat.get_info()
-        get_item(info, self.character.id)["new_messages_count"] += 1 #TODO with last message seen
-        chat.set_info(info)
-        chat.save()
-        
-    @sync_to_async
-    def reset_unseen_message_count(self, chat):
-        info = chat.get_info()
-        get_item(info, self.character.id)["new_messages_count"] = 0
-        chat.set_info(info)
-        chat.save()
     
     @sync_to_async
     def createMessage(self, chat, content):

@@ -34,13 +34,6 @@
                   {% endif %}
                   {% endif %}
                 </div>
-                {% with chat_data.chat.info|get_item:character.id as character_info %}
-                {% if character_info.new_messages_count != 0 %}
-                <span class="badge bg-danger rounded-pill translate-middle mt-2 ms-2 new-messages-count">
-                    {{ character_info.new_messages_count }}
-                </span>
-                {% endif %}
-                {% endwith %}
               </div>
             </div>
           </a>
@@ -93,9 +86,9 @@
 
   {% block scripts %}
   <script>
-    var chat2info = {
+    var unseenData = {
       {%for chat_data in chats_data%}
-      {{chat_data.chat.id}}: {{chat_data.chat.info|safe}},
+      {%if character in chat_data.characters%}{{chat_data.chat.id}}: 0,{%endif%}
       {%endfor%}
     };
     const textarea = document.getElementById('messageInput');
@@ -126,12 +119,11 @@
       $(".new-messages-count").remove();
       for (var ind in chatIds){
         chatId = chatIds[ind];
-        console.log(chat2info[chatId][characterId]["new_messages_count"]);
-        if (chat2info[chatId][characterId]["new_messages_count"] == 0){
+        if (unseenData[chatId] == 0){
           continue;
         }
         let html =  '<span class="badge bg-danger rounded-pill translate-middle mt-2 ms-2 new-messages-count">';
-            html += chat2info[chatId][characterId]["new_messages_count"];
+            html += unseenData[chatId];
             html += '</span>';
         $('.chat-top-' + chatId)[0].innerHTML += html;
       }
@@ -162,14 +154,6 @@
     const roomSocket = new WebSocket(
       'ws://' + window.location.host + '/ws/room/{{room.name}}/{{character.id}}/'
     );
-    roomSocket.onopen = function (e) {
-      roomSocket.send(
-          JSON.stringify({
-            "type": "reset_unseen_message",
-            "chat_id": currentChatId,
-          })
-        );
-    };
     roomSocket.onmessage = function (e) {
       const data = JSON.parse(e.data);
       if (data.type == "message_received") {
@@ -177,21 +161,14 @@
           addMessage(data);
           chatMessages.scrollTop(chatMessages[0].scrollHeight);
         } else if (data.character_id != characterId) {
-          roomSocket.send(
-            JSON.stringify({
-              "type": "new_unseen_message",
-              "chat_id": data.chat_id,
-            })
-          );
+          unseenData[data.chat_id] += 1;
+          update_unseen_message();
         }
         allMessagesData[data.chat_id].push({content: data.content,
           image: data.image,
           character_id: data.character_id,
           date: data.date,
         });
-      } else if (data.type == "update_unseen_message"){
-        chat2info = data.chat2info;
-        update_unseen_message();
       }
       else {
         console.log(data);
@@ -228,12 +205,8 @@
         for (const ind in allMessagesData[chatId]){
           addMessage(allMessagesData[chatId][ind]);
         }
-        roomSocket.send(
-          JSON.stringify({
-            "type": "reset_unseen_message",
-            "chat_id": currentChatId,
-          })
-        );
+        unseenData[currentChatId] = 0;
+        update_unseen_message();
       }
       return out;
     }
