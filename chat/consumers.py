@@ -172,7 +172,6 @@ class WaitingConsumer(AsyncWebsocketConsumer):
             info[char.id] = {}
             info[char.id]["new_messages_count"] = 0
             chat.characters.add(char)
-        chat.set_info(info)
         chat.save()
         
         #one2one chats
@@ -183,7 +182,6 @@ class WaitingConsumer(AsyncWebsocketConsumer):
                     char2.id: {"new_messages_count": 0},}
             chat.characters.add(char1)
             chat.characters.add(char2)
-            chat.set_info(info)
             chat.save()
 
     @sync_to_async
@@ -254,11 +252,39 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
+        elif text_data_json["type"] == "change_chat_block_status":
+            chat = await get_chat(text_data_json["chat_id"])
+            await self.set_chat_block_status(chat, text_data_json["status"])
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'change_chat_block_status',
+                    'status': text_data_json["status"],
+                    'chat_id': text_data_json["chat_id"]
+                }
+            )
         else:
             print(text_data_json)
     
     async def send_data(self, event):
         await self.send(text_data=event["data"])
+    
+    async def change_chat_block_status(self, event):
+        await self.send(text_data=json.dumps({"type": "update_chat_block_status",
+                        "blocked_chat_ids": await self.get_blocked_chat_ids()}))
+    
+    @sync_to_async
+    def get_blocked_chat_ids(self):
+        chat_ids = []
+        for chat in self.room.chat_set.all():
+            if chat.is_blocked:
+                chat_ids.append(chat.id)
+        return chat_ids
+    
+    @sync_to_async
+    def set_chat_block_status(self, chat, status):
+        chat.is_blocked = status
+        chat.save()
     
     @sync_to_async
     def createMessage(self, chat, content):

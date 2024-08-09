@@ -16,8 +16,8 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('room', models.ForeignKey(to='chat.room', on_delete=models.CASCADE)),
                 ('characters', models.ManyToManyField(to='users.character')),
-                ('info_json', models.CharField(max_length=512, default="{}")),
-                ('is_general', models.BooleanField(default=False))
+                ('is_general', models.BooleanField(default=False)),
+                ('is_blocked', models.BooleanField(default=False))
             ],
         ),
     ]

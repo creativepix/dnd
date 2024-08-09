@@ -18,7 +18,6 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=50, primary_key=True)),
                 ('characters', models.ManyToManyField(to='users.character')),
                 ('is_waiting', models.BooleanField()),
-                ('info_json', models.CharField(max_length=512, default="{}")),
             ],
         ),
     ]

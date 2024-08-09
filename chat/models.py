@@ -28,9 +28,7 @@ class Chat(models.Model):
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
     characters = models.ManyToManyField(Character)
     is_general = models.BooleanField(default=False)
-
-    def info(self):
-        return self.get_info()
+    is_blocked = models.BooleanField(default=False)
 
 class Message(models.Model):
     id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')

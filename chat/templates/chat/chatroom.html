@@ -97,11 +97,16 @@
       this.style.height = 'auto';
       this.style.height = (this.scrollHeight) + 'px';
     });
+    
+    const chatMessages = $(".chat-messages");
+    const messageInput = $("#messageInput");
+    const sendBtn = $(".send-message-btn");
 
     var generalChatId = {{ chats_data.0.chat.id }};
     var currentChatId = {{ chats_data.0.chat.id }};
     var characterId = {{ character.id }};
     var chatIds = [{%for chat_data in chats_data%}{%if character in chat_data.characters%}{{chat_data.chat.id}},{%endif%}{%endfor%}];
+    var chatIdsDM = [{%for chat_data in chats_data%}{%if characterDM in chat_data.characters %}{{chat_data.chat.id}},{%endif%}{%endfor%}];
     var allMessagesData = {
     {%for chat_data in chats_data%}
     {{chat_data.chat.id}}: 
@@ -114,6 +119,7 @@
       {%endfor%}],
     {%endfor%}
   };
+  var blocked_chat_ids = [{%for chat_data in chats_data%}{%if chat_data.chat.is_blocked %}{{chat_data.chat.id}},{%endif%}{%endfor%}];
 
     function update_unseen_message(){
       $(".new-messages-count").remove();
@@ -150,6 +156,20 @@
       chatMessages[0].innerHTML += html;
     }
 
+    function updateChatBlockStatus(){
+      var status = false;
+      if (blocked_chat_ids.includes(currentChatId)){
+        status = true;
+      }
+      sendBtn.prop("disabled", status);
+      messageInput.prop("disabled", status);
+      if (status){
+        messageInput.attr("placeholder", "Dungeon Master is thinking...");
+      }else{
+        messageInput.attr("placeholder", "Type a message...");
+      }
+    }
+
 
     const roomSocket = new WebSocket(
       'ws://' + window.location.host + '/ws/room/{{room.name}}/{{character.id}}/'
@@ -169,6 +189,10 @@
           character_id: data.character_id,
           date: data.date,
         });
+      } else if(data.type == "update_chat_block_status"){
+        blocked_chat_ids = data.blocked_chat_ids;
+        console.log(blocked_chat_ids);
+        updateChatBlockStatus();
       }
       else {
         console.log(data);
@@ -179,12 +203,20 @@
     };
 
 
-    const chatMessages = $(".chat-messages");
-    const messageInput = $("#messageInput");
-    const sendBtn = $(".send-message-btn");
     sendBtn.on("click", function (e) {
       if (!messageInput.val()) {
         return;
+      }
+      if (chatIdsDM.includes(currentChatId) && generalChatId != currentChatId){
+        blocked_chat_ids.push(currentChatId);
+        updateChatBlockStatus();
+        roomSocket.send(
+          JSON.stringify({
+            "type": "change_chat_block_status",
+            "chat_id": currentChatId,
+            "status": true
+          })
+        );
       }
       roomSocket.send(
         JSON.stringify({
@@ -207,6 +239,7 @@
         }
         unseenData[currentChatId] = 0;
         update_unseen_message();
+        updateChatBlockStatus();
       }
       return out;
     }

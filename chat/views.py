@@ -6,6 +6,7 @@ import json
 from .forms import RoomForm
 from .models import Room, Waiting
 from users.models import Character
+from dungeon_master import characterDM
 
 @login_required()
 def chat_home(request):
@@ -56,5 +57,6 @@ def dnd_room(request, room_name):
         'room': room,
         'chats_data': chats_data,
         'character': character,
+        'characterDM': characterDM,
         'title': room_name,
     })
