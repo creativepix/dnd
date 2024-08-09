@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 
+import json
 from .forms import RoomForm
 from .models import Room, Waiting
 from users.models import Character
@@ -21,7 +22,6 @@ def chat_home(request):
             room.save()
         else:
             room = room[0]
-        print(room.name)
         if room.characters.filter(user=request.user).exists() and character.id != room.characters.filter(user=request.user)[0].id:
             messages.warning(request, "One of your characters is already in room")
         elif room.is_waiting or room.characters.filter(id=character.id).exists():

@@ -1,3 +1,4 @@
+import json
 from django.db import models
 from users.models import Character
 
@@ -5,6 +6,16 @@ class Room(models.Model):
     name = models.CharField(max_length=50, primary_key=True)
     characters = models.ManyToManyField(Character)
     is_waiting = models.BooleanField()
+    info_json = models.CharField(max_length=512, default="{}")
+    
+    def set_info(self, info):
+        self.info_json = json.dumps(info)
+
+    def get_info(self):
+        return json.loads(self.info_json)
+
+    def info(self):
+        return self.get_info()
 
     def __str__(self):
         return str(self.name)
@@ -27,6 +38,16 @@ class Chat(models.Model):
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
     characters = models.ManyToManyField(Character)
     is_general = models.BooleanField(default=False)
+    info_json = models.CharField(max_length=512, default="{}")
+    
+    def set_info(self, info):
+        self.info_json = json.dumps(info)
+
+    def get_info(self):
+        return json.loads(self.info_json)
+
+    def info(self):
+        return self.get_info()
 
 class Message(models.Model):
     id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')

@@ -1,4 +1,5 @@
 {% extends "chat/base.html" %} {% load crispy_forms_tags %}
+{% load extras %}
 {% block head_content %}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 {% endblock head_content %}
@@ -15,14 +16,14 @@
         <div class="list-group overflow-auto">
           {% for chat_data in chats_data %}
           {% if character in chat_data.characters %}
-          <a id="{{chat_data.chat.id}}" href="#"
+          <button type="button" id="btn-redirect-chat-{{chat_data.chat.id}}"
             class="list-group-item list-group-item-action {%if chat_data.chat.is_general%}active{%endif%}">
             <div class="d-flex align-items-center">
               <img style="max-width:40px;max-height:40px"
                 src="{% if character == chat_data.characters.0 %}{{ chat_data.characters.1.image.url }}{% else %}{{ chat_data.characters.0.image.url }}{% endif %}"
                 class="rounded-circle me-3">
-              <div>
-                <div class="fw-bold">
+              <div class="chat-top-{{chat_data.chat.id}}">
+                <div class="fw-bold pb-2">
                   {% if chat_data.chat.is_general %}
                   General
                   {% else %}
@@ -33,6 +34,13 @@
                   {% endif %}
                   {% endif %}
                 </div>
+                {% with chat_data.chat.info|get_item:character.id as character_info %}
+                {% if character_info.new_messages_count != 0 %}
+                <span class="badge bg-danger rounded-pill translate-middle mt-2 ms-2 new-messages-count">
+                    {{ character_info.new_messages_count }}
+                </span>
+                {% endif %}
+                {% endwith %}
               </div>
             </div>
           </a>
@@ -85,6 +93,11 @@
 
   {% block scripts %}
   <script>
+    var chat2info = {
+      {%for chat_data in chats_data%}
+      {{chat_data.chat.id}}: {{chat_data.chat.info|safe}},
+      {%endfor%}
+    };
     const textarea = document.getElementById('messageInput');
 
     textarea.addEventListener('input', function () {
@@ -95,39 +108,92 @@
     var generalChatId = {{ chats_data.0.chat.id }};
     var currentChatId = {{ chats_data.0.chat.id }};
     var characterId = {{ character.id }};
+    var chatIds = [{%for chat_data in chats_data%}{%if character in chat_data.characters%}{{chat_data.chat.id}},{%endif%}{%endfor%}];
+    var allMessagesData = {
+    {%for chat_data in chats_data%}
+    {{chat_data.chat.id}}: 
+      [{%for message in chat_data.messages%}
+        {content: '{{message.content}}',
+         image: '{{message.character.image.url}}',
+         character_id: {{message.character.id}},
+         date: '{{message.date_added|time:'H:i:s'}}',
+        },
+      {%endfor%}],
+    {%endfor%}
+  };
+
+    function update_unseen_message(){
+      $(".new-messages-count").remove();
+      for (var ind in chatIds){
+        chatId = chatIds[ind];
+        console.log(chat2info[chatId][characterId]["new_messages_count"]);
+        if (chat2info[chatId][characterId]["new_messages_count"] == 0){
+          continue;
+        }
+        let html =  '<span class="badge bg-danger rounded-pill translate-middle mt-2 ms-2 new-messages-count">';
+            html += chat2info[chatId][characterId]["new_messages_count"];
+            html += '</span>';
+        $('.chat-top-' + chatId)[0].innerHTML += html;
+      }
+    }
+
+    function addMessage(data){
+      var html = "";
+      if (characterId == data.character_id) {
+        html += '<div class="message mb-3 text-end">';
+        html += '  <div class="d-inline-block bg-light p-2 rounded">';
+        html += '      <small>' + data.content + '</small>';
+        html += '  </div>';
+        html += '  <img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
+      } else {
+        html += '<div class="message mb-3">';
+        html += '  <img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
+        html += '  <div class="d-inline-block bg-light p-2 rounded">';
+        html += '      <small>' + data.content + '</small>';
+        html += '  </div>';
+      }
+      html += '  <small class="text-muted d-block">' + data.date + '</small>';
+      html += '</div>';
+
+      chatMessages[0].innerHTML += html;
+    }
 
 
     const roomSocket = new WebSocket(
       'ws://' + window.location.host + '/ws/room/{{room.name}}/{{character.id}}/'
     );
+    roomSocket.onopen = function (e) {
+      roomSocket.send(
+          JSON.stringify({
+            "type": "reset_unseen_message",
+            "chat_id": currentChatId,
+          })
+        );
+    };
     roomSocket.onmessage = function (e) {
       const data = JSON.parse(e.data);
       if (data.type == "message_received") {
         if (currentChatId == data.chat_id) {
-          var html = "";
-          if (characterId == data.character_id) {
-            html += '<div class="message mb-3 text-end">';
-            html += '  <div class="d-inline-block bg-light p-2 rounded">';
-            html += '      <small>' + data.content + '</small>';
-            html += '  </div>';
-            html += '  <img src="' + data.character_image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
-          } else {
-            html += '<div class="message mb-3">';
-            html += '  <img src="' + data.character_image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
-            html += '  <div class="d-inline-block bg-light p-2 rounded">';
-            html += '      <small>' + data.content + '</small>';
-            html += '  </div>';
-          }
-          html += '  <small class="text-muted d-block">' + data.date + '</small>';
-          html += '</div>';
-
-          $(".chat-messages")[0].innerHTML += html;
-          $(".chat-messages").scrollTop($(".chat-messages")[0].scrollHeight);
-        } else {
-          //TODO: when message is from other chat
+          addMessage(data);
+          chatMessages.scrollTop(chatMessages[0].scrollHeight);
+        } else if (data.character_id != characterId) {
+          roomSocket.send(
+            JSON.stringify({
+              "type": "new_unseen_message",
+              "chat_id": data.chat_id,
+            })
+          );
         }
-        console.log(data);
-      } else {
+        allMessagesData[data.chat_id].push({content: data.content,
+          image: data.image,
+          character_id: data.character_id,
+          date: data.date,
+        });
+      } else if (data.type == "update_unseen_message"){
+        chat2info = data.chat2info;
+        update_unseen_message();
+      }
+      else {
         console.log(data);
       }
     };
@@ -136,6 +202,7 @@
     };
 
 
+    const chatMessages = $(".chat-messages");
     const messageInput = $("#messageInput");
     const sendBtn = $(".send-message-btn");
     sendBtn.on("click", function (e) {
@@ -152,6 +219,28 @@
       messageInput.val("");
     });
 
+    function redirectChat(chatId){
+      function out(){
+        $("#btn-redirect-chat-" + currentChatId)[0].classList.remove("active");
+        $("#btn-redirect-chat-" + chatId)[0].classList.add("active");
+        currentChatId = chatId;
+        chatMessages[0].innerHTML = "";
+        for (const ind in allMessagesData[chatId]){
+          addMessage(allMessagesData[chatId][ind]);
+        }
+        roomSocket.send(
+          JSON.stringify({
+            "type": "reset_unseen_message",
+            "chat_id": currentChatId,
+          })
+        );
+      }
+      return out;
+    }
+    for (const ind in chatIds){
+      const chatId = chatIds[ind];
+      $("#btn-redirect-chat-" + chatId).on("click", redirectChat(chatId));
+    }
 
 
   </script>

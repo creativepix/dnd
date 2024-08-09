@@ -1,7 +1,7 @@
 import json
 import asyncio
 from asgiref.sync import sync_to_async
-
+from datetime import timedelta
 from channels.auth import login, logout
 from channels.generic.websocket import AsyncWebsocketConsumer
 from users.models import Character
@@ -25,6 +25,11 @@ def get_chat(chat_id):
 @sync_to_async
 def get_room(room_name):
     return Room.objects.get(name=room_name)
+
+def get_item(dictionary, key):
+    if key in dictionary:
+        return dictionary[key]
+    return dictionary[str(key)]
 
 class WaitingConsumer(AsyncWebsocketConsumer):
     """
@@ -158,18 +163,28 @@ class WaitingConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def create_character_chats(self):
         characters = [characterDM] + list(self.room.characters.all())
+        
+        # general chat
+        chat = Chat(room=self.room, is_general=True)
+        chat.save()
+        info = {}
+        for char in characters:
+            info[char.id] = {}
+            info[char.id]["new_messages_count"] = 0
+            chat.characters.add(char)
+        chat.set_info(info)
+        chat.save()
+        
+        #one2one chats
         for char1, char2 in itertools.combinations(characters, 2):
             chat = Chat(room=self.room)
             chat.save()
+            info = {char1.id: {"new_messages_count": 0},
+                    char2.id: {"new_messages_count": 0},}
             chat.characters.add(char1)
             chat.characters.add(char2)
+            chat.set_info(info)
             chat.save()
-        
-        chat = Chat(room=self.room, is_general=True)
-        chat.save()
-        for char in characters:
-            chat.characters.add(char)
-        chat.save()
 
     @sync_to_async
     def set_room_waiting_state(self, state):
@@ -239,22 +254,55 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
+        elif text_data_json["type"] == "new_unseen_message":
+            await self.update_unseen_message_count(await get_chat(text_data_json["chat_id"]))
+            await self.send(text_data=json.dumps(
+                {"type": "update_unseen_message",
+                "chat2info": await self.get_chat2info()}))
+        elif text_data_json["type"] == "reset_unseen_message":
+            await self.reset_unseen_message_count(await get_chat(text_data_json["chat_id"]))
+            await self.send(text_data=json.dumps(
+                {"type": "update_unseen_message",
+                "chat2info": await self.get_chat2info()}))
         else:
             print(text_data_json)
     
     async def send_data(self, event):
         await self.send(text_data=event["data"])
+        
+    @sync_to_async
+    def get_chat2info(self):
+        chat2info = {}
+        for chat in self.room.chat_set.all():
+            chat2info[chat.id] = chat.get_info()
+        return chat2info
+        
+    @sync_to_async
+    def update_unseen_message_count(self, chat):
+        info = chat.get_info()
+        get_item(info, self.character.id)["new_messages_count"] += 1 #TODO with last message seen
+        chat.set_info(info)
+        chat.save()
+        
+    @sync_to_async
+    def reset_unseen_message_count(self, chat):
+        info = chat.get_info()
+        get_item(info, self.character.id)["new_messages_count"] = 0
+        chat.set_info(info)
+        chat.save()
     
     @sync_to_async
     def createMessage(self, chat, content):
         message = Message(chat=chat, character=self.character, content=content)
+        message.save()
+        message.date_added += timedelta(hours=3)
         message.save()
         text_data = json.dumps({
             'type': 'message_received',
             'content': message.content,
             'character_id': message.character.id,
             'character_name': message.character.name,
-            'character_image': message.character.image.url,
+            'image': message.character.image.url,
             'date': message.date_added.strftime("%H:%M:%S"),
             'chat_id': message.chat.id,
         })
