@@ -74,6 +74,7 @@ class Character(models.Model):
     stats = models.OneToOneField(Stats, on_delete=models.CASCADE)
     date_added = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.DO_NOTHING)
+    info = models.CharField(max_length=512, default="")
 
     class Meta:
         ordering = ('date_added', )

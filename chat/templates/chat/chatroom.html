@@ -26,6 +26,8 @@
                 <div class="fw-bold pb-2">
                   {% if chat_data.chat.is_general %}
                   General
+                  {% elif chat_data.chat.is_friends %}
+                  Friends
                   {% else %}
                   {% if character == chat_data.characters.0 %}
                   {{ chat_data.characters.1.name }}
@@ -65,7 +67,7 @@
             {%else%}
             <img src="{{message.character.image.url}}" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">
             <div class="d-inline-block bg-primary bg-light p-2 rounded">
-              <small>{{message.content}}</small>
+              <small style="white-space: pre-wrap;">{{message.content}}</small>
             </div>
             {%endif%}
             <small class="text-muted d-block">{{message.date_added|time:'H:i:s'}}</small>
@@ -103,6 +105,7 @@
     const sendBtn = $(".send-message-btn");
 
     var generalChatId = {{ chats_data.0.chat.id }};
+    var friendsChatId = {{ chats_data.1.chat.id }};
     var currentChatId = {{ chats_data.0.chat.id }};
     var characterId = {{ character.id }};
     var chatIds = [{%for chat_data in chats_data%}{%if character in chat_data.characters%}{{chat_data.chat.id}},{%endif%}{%endfor%}];
@@ -111,7 +114,7 @@
     {%for chat_data in chats_data%}
     {{chat_data.chat.id}}: 
       [{%for message in chat_data.messages%}
-        {content: '{{message.content}}',
+        {content: `{{message.content}}`,
          image: '{{message.character.image.url}}',
          character_id: {{message.character.id}},
          date: '{{message.date_added|time:'H:i:s'}}',
@@ -140,14 +143,14 @@
       if (characterId == data.character_id) {
         html += '<div class="message mb-3 text-end">';
         html += '  <div class="d-inline-block bg-light p-2 rounded">';
-        html += '      <small>' + data.content + '</small>';
+        html += '      <small style="white-space: pre-wrap;">' + data.content + '</small>';
         html += '  </div>';
         html += '  <img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
       } else {
         html += '<div class="message mb-3">';
         html += '  <img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
         html += '  <div class="d-inline-block bg-light p-2 rounded">';
-        html += '      <small>' + data.content + '</small>';
+        html += '      <small style="white-space: pre-wrap;">' + data.content + '</small>';
         html += '  </div>';
       }
       html += '  <small class="text-muted d-block">' + data.date + '</small>';
@@ -207,7 +210,7 @@
       if (!messageInput.val()) {
         return;
       }
-      if (chatIdsDM.includes(currentChatId) && generalChatId != currentChatId){
+      if (chatIdsDM.includes(currentChatId) && generalChatId != currentChatId && friendsChatId != currentChatId){
         blocked_chat_ids.push(currentChatId);
         updateChatBlockStatus();
         roomSocket.send(

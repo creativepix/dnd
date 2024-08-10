@@ -17,7 +17,8 @@ class Migration(migrations.Migration):
                 ('chat', models.ForeignKey(to='chat.chat', on_delete=models.CASCADE)),
                 ('character', models.ForeignKey(to='users.character', on_delete=models.CASCADE)),
                 ('date_added', models.DateTimeField(auto_now_add=True)),
-                ('content', models.CharField(max_length=512)),
+                ('content', models.CharField(max_length=2048)),
+                ('short_content', models.CharField(max_length=512, default="")),
             ],
             options={
                 'ordering': ('date_added',),

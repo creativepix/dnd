@@ -17,7 +17,8 @@ class Migration(migrations.Migration):
                 ('room', models.ForeignKey(to='chat.room', on_delete=models.CASCADE)),
                 ('characters', models.ManyToManyField(to='users.character')),
                 ('is_general', models.BooleanField(default=False)),
-                ('is_blocked', models.BooleanField(default=False))
+                ('is_blocked', models.BooleanField(default=False)),
+                ('is_friends', models.BooleanField(default=False)),
             ],
         ),
     ]

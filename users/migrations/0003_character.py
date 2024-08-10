@@ -22,6 +22,7 @@ class Migration(migrations.Migration):
                 ('stats', models.OneToOneField(on_delete=models.CASCADE, to='users.Stats')),
                 ('date_added', models.DateTimeField(auto_now_add=True)),
                 ('user', models.ForeignKey(on_delete=models.DO_NOTHING, to=settings.AUTH_USER_MODEL)),
+                ('info', models.CharField(max_length=512, default="")),
             ],
             options={
                 'ordering': ('date_added',),
