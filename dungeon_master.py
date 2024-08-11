@@ -5,8 +5,9 @@ from openai_api import generate_text, generate_text_by_msgs
 import re
 from asgiref.sync import sync_to_async
 
-MAX_CONTENT_SIZE = 1024
-MAX_PERSONAL_CONTENT_SIZE = 256
+MAX_CONTENT_SIZE = 4096
+MAX_PERSONAL_CONTENT_SIZE = 512
+CHANGING_SCENARIO_PARTS_N = 3
 
 def extract_parts(text):
     pattern = r'\[\d+\](.*?)(?=\[\d+\]|$)'
@@ -32,7 +33,7 @@ except Exception:
 
 def get_character_info(character):
     stats = character.stats
-    system_prompt = "Твоя задача какможно сильнее сжать следующую информацию так, чтобы она отражала основные характеристики героя. Удаляй ту информацию, которая не сказывается (либо сказывается мало) на характере персонажа!"
+    system_prompt = "Твоя задача как можно сильнее сжать следующую информацию так, чтобы она отражала основные характеристики героя. Удаляй ту информацию, которая не сказывается (либо сказывается мало) на характере персонажа! В дальнейшем это будет использоваться как промпт для генерации изображения"
     constitution = "худое"            
     if 10 < stats.armour < 15:
         constitution = "среднее"
@@ -74,7 +75,7 @@ def get_character_info(character):
 Телосложение:
 {constitution}
 """
-    return generate_text(prompt, system_prompt).replace("\n", "")
+    return generate_text(prompt, system_prompt, model="gpt-3.5-turbo").replace("\n", "")
     
 def classify_personal_prompt(prompt):
     """1 - trash; 2 - general; 3 - ask; 4 - action"""
@@ -88,6 +89,7 @@ def classify_personal_prompt(prompt):
 
 Примеры классификации:
 "freererh уа" - [[1]]
+"баба" - [[1]]
 "Эй, боб, привет)" - [[2]]
 "Как думаете, я могу это сделать?" - [[2]]
 "Я могу заброситься на спину этого дракона?" - [[3]]
@@ -100,7 +102,7 @@ def classify_personal_prompt(prompt):
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
     prompt = "Запрос пользователя:\n" + prompt
-    out = generate_text(prompt, system_prompt)
+    out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
         prompt_class = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
         if prompt_class == 2:
@@ -113,10 +115,10 @@ def classify_personal_prompt(prompt):
 
 def check_need_equipment(prompt):
     "0 - no; 1 - no; 2 - yes"
-    system_prompt = """Ты - DungeonMaster в игре Dungeon&Dragons. Тебе поступил запрос одного из героев на совершение действия. Твоя задача классифицировать этот запрос в один из следующих классов:
-0) данное действие пользователь может совершить без предметов
-1) для совершения данного действия пользователю необходимы какие-то предметы, но в самом запросе пользователь их уже берет
-2) для совершения данного действия пользователю необходимы какие-то предметы
+    system_prompt = """Ты - DungeonMaster в игре Dungeon&Dragons. Герой собирается что-то делать. Твоя задача классифицировать его действия в один из следующих классов:
+0) данные действия игрок может совершить без предметов
+1) для совершения данных действий игроку необходимы какие-то предметы, но в самом запросе пользователь их уже берет
+2) для совершения данных действий игроку необходимы какие-то предметы
 
 Твой ответ должен быть в формате: [[число]]
 
@@ -132,11 +134,14 @@ def check_need_equipment(prompt):
 
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
-    prompt = "Запрос пользователя:\n" + prompt
-    out = generate_text(prompt, system_prompt)
+    prompt = "Действия игрока:\n" + prompt
+    out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
-        return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        out = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        print("Need equipment:", out)
+        return out
     except Exception:
+        print("ERROR. Need equipment: 0")
         return 0
 
 def check_need_spells(prompt):
@@ -159,7 +164,7 @@ def check_need_spells(prompt):
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
     prompt = "Запрос пользователя:\n" + prompt
-    out = generate_text(prompt, system_prompt)
+    out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
         return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
     except Exception:
@@ -190,7 +195,7 @@ def check_spells(prompt, spells):
 
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
-    out = generate_text(prompt)
+    out = generate_text(prompt, model="gpt-3.5-turbo")
     try:
         return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
     except Exception:
@@ -218,14 +223,14 @@ def check_equipment(prompt, equipment):
 Вывод: [[0]]
 
 Инвентарь у игрока:
-{spells}
+{equipment}
 
 Запрос игрока:
 {prompt}
 
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
-    out = generate_text(prompt)
+    out = generate_text(prompt, model="gpt-3.5-turbo")
     try:
         return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
     except Exception:
@@ -236,7 +241,7 @@ def classify_throws_skills(prompt):
     system_prompt = """Ты - DungeonMaster в игре Dungeon&Dragons. Тебе поступил запрос одного из героев на совершение какого-либо действия. Твоя задача классифицировать этот запрос в один из следующих классов, принимая ввиду, какие навыки пользователю необходимы:
 0) запрос не требует никаких навыков
 1) запрос требует от пользователя каких-то базовых навыков (силы или ловкости, или телосложения, или мудрости, или харизмы, или восприятия)
-2) запрос требует от пользователя каких особых навыков (акробатика, разговор с животными, восприятие реальности, знание истории, медицины)
+2) запрос требует от пользователя каких особых навыков (Акробатика, Анализ, Атлетика, Восприятие, Выживание, Выступление, Запугивание, История, Ловкость рук, Магия, Медицина, Обман, Природа, Проницательность, Религия, Скрытность, Убеждение, Уход за животными)
 
 Твой ответ должен быть в формате: [[число]]
 
@@ -253,7 +258,7 @@ def classify_throws_skills(prompt):
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
     prompt = "Запрос пользователя:\n" + prompt
-    out = generate_text(prompt, system_prompt)
+    out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
         return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
     except Exception:
@@ -284,7 +289,7 @@ def get_exact_throws(prompt):
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
     prompt = "Запрос пользователя:\n" + prompt
-    out = generate_text(prompt, system_prompt)
+    out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
         return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
     except Exception:
@@ -338,14 +343,14 @@ def get_exact_skills(prompt):
 [[число]]
 """
     prompt = "Запрос пользователя:\n" + prompt
-    out = generate_text(prompt, system_prompt)
+    out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
         return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
     except Exception:
         return 5
 
 def create_scenario_parts(characters):
-    prompt = """Ты - Dungeon Master в игре Dungeon&Dragons. Твоя задача придумать сценарий так, чтобы каждая его часть представляла из себя какую-то единичную активность. Каждая часть/активность должна быть описана кратко, их должно быть много (около 20)
+    prompt = """Ты - Dungeon Master в игре Dungeon&Dragons. Твоя задача придумать сценарий так, чтобы каждая его часть представляла из себя какую-то единичную активность. Каждая часть/активность должна быть описана кратко, их должно быть много (около 10)
 
 Оформляй сценарий в таком виде:
 [1]
@@ -358,8 +363,10 @@ def create_scenario_parts(characters):
     for i, character in enumerate(characters, start=1):
         prompt += f"{i}) " + character.info + "\n"
     prompt += "Попытайся сделать так, чтобы сценарий понравился всем. Помни, что последняя часть сценария должна быть завершающей, не подразумевающей продолжение!"
-    txt = generate_text(prompt)
-    return extract_parts(txt)
+    txt = generate_text(prompt, model="gpt-3.5-turbo")
+    print(txt)
+    parts = extract_parts(txt)
+    return parts
 
 def make_content_shorter(content):
     prompt = f"""Ты - Dungeon Master в игре Dungeon&Dragons.Твоя задача как можно сильнее сжать следующую информацию так, чтобы она отражала основные произошедшие события. Удаляй ту информацию, которая не сказывается (либо сказывается мало) на будущем!
@@ -396,7 +403,7 @@ def get_messages_history_prompt(chat, max_content_size=MAX_CONTENT_SIZE, charact
         else:
             content = message.content
         if message.character == characterDM:
-            role = "system"
+            role = "assistant"
         else:
             role = "user"
             content = f"Персонаж {charid2id[message.character.id]}:\n" + content
@@ -424,6 +431,9 @@ def generate_intro(room):
 
 #prompt_class: 3 - ask; 4 - action
 def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_prompt="", throws_skills_prompt_adding=""):
+    scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
+    current_part = general_chat.room.scenario.scenariostate.current_part
+    
     if any(cannot_make_prompt):
         insertion = 'контекст, в котором говорится, что игрок не может совершить данное действие по причине: ' + cannot_make_prompt
     elif prompt_class == 4:
@@ -434,17 +444,22 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
     
     prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо сгенерировать {insertion}.
 {get_characters_info_prompt(characters)}"""
-    messages = [{"role": "system", "content": prompt0}]
-    messages += get_messages_history_prompt(general_chat, characters=characters)
-    
-    scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
-    current_part = general_chat.room.scenario.scenariostate.current_part
-    prompt_last = f"""Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо сгенерировать {insertion}.
+    if not any(cannot_make_prompt) and prompt_class == 4 and not current_part.is_final:
+        
+        next_part = scenario_parts[scenario_parts.index(current_part) + 1]
+        prompt0 += f"""Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо сгенерировать {insertion}.
 Сейчас игроки находятся в этой части сюжета:
 {current_part.content}
 
-{get_characters_info_prompt(characters)}
+Ты должен учитывать, что игроки двигаются по сюжету в эту сторону:
+{next_part.content}
 """
+
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat, characters=characters)
+    
+    next_part = scenario_parts[scenario_parts.index(current_part) + 1]
+    prompt_last = ""
     if not any(cannot_make_prompt):
         if prompt_class == 4:
             if current_part.is_final:
@@ -452,7 +467,16 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
 Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение
 """
             else:
-                next_part = scenario_parts[scenario_parts.index(current_part) + 1]
+                prompt_last += f"""
+Ты должен учитывать, что игроки двигаются по сюжету в эту сторону:
+{next_part.content}
+
+Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо сгенерировать {insertion}.
+Помни, что ты генерируешь продолжение сюжета, поэтому учитывай предыдущую историю.
+Ты не должен ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
+Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение.
+НЕ ДЕЛАЙ очень много действий. Твое сообщение не должно быть по размеру средним.
+"""
 #                prompt_last += f"""\nТебе необходимо подводить игроков к следующей части сюжета:
 #{next_part.content}
 #
@@ -460,14 +484,7 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
 #Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение
 #НЕ ПИШИ много текста. НЕ ДЕЛАЙ очень много действий. Помни, что ты в следующий раз также продолжишь сюжет и "подведение к другой части"! Твое сообщение не должно быть большим!
 #"""
-                prompt_last += f"""\nТы должен учитывать, что игроки двигаются по сюжету в эту сторону:
-{next_part.content}
-
-Помни, что ты не должен сам их подводить к следующей части сюжета: пытайся генерировать так, чтобы игроки всё ещё находились в старой части сюжета. В этом запросе максимум, что они могут сделать - это сделать небольшой шаг в сторону новой части, но не сразу переходя к ней.
-Ты не обязан ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
-Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение
-НЕ ПИШИ много текста. НЕ ДЕЛАЙ очень много действий. Помни, что ты в следующий раз также продолжишь сюжет и "подведение к другой части"! Твое сообщение не должно быть большим!
-"""
+                
         else:
             messages += get_messages_history_prompt(chat, characters=characters, max_content_size=MAX_PERSONAL_CONTENT_SIZE)
             prompt_last += "Помни, что ты лишь отвечаешь на вопрос пользователя, а не генерируешь сценарий! Если требуется, то дай рекомендации/советы игроку"
@@ -478,7 +495,7 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
         prompt_last += "\n\nНЕ ЗАБЫВАЙ УЧЕСТЬ РЕЗУЛЬТАТ ПОСЛЕДНЕГО БРОСКА КУБИКА ИГРОКОМ"
     messages += [{"role": "system", "content": prompt_last}]
     txt = generate_text_by_msgs(messages=messages)
-    print(messages)
+    #print(messages)
     return txt
 
 def check_next_part(general_chat):
@@ -503,8 +520,9 @@ def check_next_part(general_chat):
         prompt_last += f"""Следующая часть сценария:
 {next_part.content}"""
     prompt_last += """
-Помни, что тебе необходимо понять, перешел ли сюжет к следующей части."""
+Помни, что тебе необходимо понять, перешел ли сюжет к следующей части (или вообще уже её прошел/достиг)."""
     messages += [{"role": "system", "content": prompt_last}]
+    print(messages)
     out = generate_text_by_msgs(messages=messages)
     #print(messages)
     try:
@@ -556,7 +574,7 @@ def what_equipment_changed(message):
 Помни, что ситуации, когда необходимо что-то сделать с инвентарем, не частые - проводи изменения только в явных случаях.
 """
     prompt = "Запрос игрока:\n" + message
-    out = generate_text(prompt, system_prompt)
+    out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
         out = re.findall(r'\[\[(.*?)\]\]', out)[:3]
         if out[0] not in [0, 1]:
@@ -608,5 +626,100 @@ def change_equipment(equipment, cmd, character_info):
 
 Помни, что твой ответ должен практически полностью совпадать с инвенарем игрока. 
 """
-    out = generate_text(prompt)
+    out = generate_text(prompt, model="gpt-3.5-turbo")
     return out
+
+def need_change_scenario(general_chat):
+    return 1
+#    "0 - no; 1 - yes"
+#    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо будет понять, приведут ли последние действия героев к изменению сюжета."""
+#    messages = [{"role": "system", "content": prompt0}]
+#    messages += get_messages_history_prompt(general_chat)
+#    
+#    scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
+#    current_part = general_chat.room.scenario.scenariostate.current_part
+#    current_part_ind = scenario_parts.index(current_part)
+#    scenario_prompt = """Тебе даны следующие части сюжета (каждое начало части в формате [часть] ):
+#"""
+#    for i, scenario_part in enumerate(scenario_parts[current_part_ind:min(len(scenario_parts), current_part_ind+CHANGING_SCENARIO_PARTS_N)], start=current_part_ind+1):
+#        scenario_prompt += f"[{i}]\n{scenario_part.content}\n"
+#    messages += [{"role": "system", "content": scenario_prompt}]
+#    last_prompt = """Тебе необходимо понять, изменится ли сюжет после действий героев или нет. Ответь в формате:
+#[[0]] - сценарий не изменится (например, идет какой-то разговор, игроки куда-то свернули/пришли)
+#[[1]] - сценарий изменится (например, игроки нарушают порядок действий, решают идти иным путем)
+#
+#Пример вывода:
+#[[0]]
+#"""
+#    messages += [{"role": "system", "content": last_prompt}]
+#    out = generate_text_by_msgs(messages)
+#    try:
+#        out = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+#        print(f'scenario change:', out)
+#        return out
+#    except Exception:
+#        print(f'ERROR. scenario change: {current_part_ind}, out:', out)
+#        return 0
+#    txt = generate_text_by_msgs(messages=messages)
+#    print(messages)
+
+def combine_scenarios(content_scenario1, content_scenario2):
+    prompt = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо объединить две части сюжета в одну. Ты также можешь ужалять ненужную информацию, которая никак на сюжет не влияет
+Первая часть сюжета:
+{content_scenario1}
+
+Вторая часть сюжета:
+{content_scenario2}
+
+Ответ дай в виде объединенной части сюжета (без каких-либо личных комментариев). Преимущество сюжета оставляй за первой частью. Не объединяй части типами "но", "а", только как объединение, а не замещение
+"""
+    return generate_text(prompt)
+
+
+def change_scenario(general_chat, throws_skills_prompt_adding=""):
+    "0 - no; 1 - yes"
+    characters = general_chat.room.characters.all()
+    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Действия героев привели к какому-то (возможно, небольшому) изменению сценария. Твооей задачей будет немного изменить сюжет так, чтобы он подстроился под действия героев.
+Герои:
+{get_characters_info_prompt(characters)}
+"""
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat)
+    
+    scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
+    current_part = general_chat.room.scenario.scenariostate.current_part
+    current_part_ind = scenario_parts.index(current_part)
+    if any(throws_skills_prompt_adding):
+        messages += [{"role": "system", "content": throws_skills_prompt_adding}]
+    #messages += [{"role": "system", "content": scenario_prompt}]
+    last_prompt = f"""Тебе необходимо изменить сценарий так, чтобы он подстраивался под последние события. Все части должны быть описаны ОЧЕНЬ кратко.
+Часть сюжета на которой остановились:
+{current_part.content}
+
+Тебе необходимо изменить следующую часть сюжета (но помни, что основная идея этой части сценария должна остаться, анпример, какие-то предметы/существа/действия в нем):
+{scenario_parts[current_part_ind + 1].content}
+"""
+    messages += [{"role": "system", "content": last_prompt}]
+    print(messages)
+    #for i, scenario_part in enumerate(scenario_parts[current_part_ind:min(len(scenario_parts), current_part_ind+CHANGING_SCENARIO_PARTS_N+1)], start=current_part_ind+1):
+    #    messages += [{"role": "user", "content": f"[{i}]\n{scenario_part.content}\n"}]
+    #print(messages)
+    txt = generate_text_by_msgs(messages=messages, model="gpt-4o")
+    txt = make_content_shorter(combine_scenarios(scenario_parts[current_part_ind+1].content, txt))
+    print("New scenario before:", scenario_parts[current_part_ind+1].content)
+    scenario_parts[current_part_ind+1].content = txt
+    scenario_parts[current_part_ind+1].save()
+    print("Current part:", current_part.content)
+    print("New scenario parts:", scenario_parts[current_part_ind+1].content)
+    #new_parts_content = extract_parts(txt)[1:]
+    #for i in range(len(new_parts_content)):
+    #    new_parts_content[i] = make_content_shorter(new_parts_content[i])
+    #print("Current part:", current_part.content)
+    ##shorted_new_parts_content = []
+    #print("New scenario parts:", txt)
+    #for new_scenario_part_content, scenario_part in zip(new_parts_content, scenario_parts[current_part_ind+1:min(len(scenario_parts), current_part_ind+CHANGING_SCENARIO_PARTS_N+1)]):
+    #    #scenario_part.content = make_content_shorter(new_scenario_part_content)
+    #    scenario_part.content = new_scenario_part_content.replace("...", "")
+    #    scenario_part.save()
+    #    #shorted_new_parts_content.append(scenario_part.content)
+    #print("New short scenario parts:", shorted_new_parts_content)

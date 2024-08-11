@@ -13,7 +13,7 @@ from dungeon_master import create_scenario_parts, get_character_info, generate_a
     classify_personal_prompt, sync_generate_answer, make_content_shorter, sync_make_content_shorter, \
     check_need_spells, check_need_equipment, classify_throws_skills, get_exact_throws, get_exact_skills, \
     change_equipment, what_equipment_changed, check_next_part, check_equipment, check_spells, generate_intro, \
-    sync_check_next_part
+    sync_check_next_part, need_change_scenario, change_scenario
 import random
 
 WAIT_SECONDS = 0.5
@@ -323,7 +323,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
         characters = await get_room_characters(self.room)
         
         #1 - trash; 2 - general; 3 - ask; 4 - action
-        prompt_class = classify_personal_prompt(message)
+        #prompt_class = classify_personal_prompt(message)
+        if chat.is_general:
+            prompt_class = 4
+        else:
+            prompt_class = 3
         message_text_data = None
         if prompt_class in [3, 4]:
             if prompt_class == 3:
@@ -466,8 +470,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     else:
                         adding = self.character.stats.survival
                     s = r + adding + prof
-                    out_adding += f'Тебе потребовался навык "{throws[throws_ind]}" (вычисляется как 1к20 + модификатор характеристики + бонус мастерства). Его получившееся значение: {r}+{adding}+{prof}={s}\n\n'
-                    throws_skills_prompt_adding += f'Игрок также совершил проверку навыка "{throws[throws_ind]}". У него получилось: "{s}". '
+                    out_adding += f'Тебе потребовался навык "{skills[skills_ind]}" (вычисляется как 1к20 + модификатор характеристики + бонус мастерства). Его получившееся значение: {r}+{adding}+{prof}={s}\n\n'
+                    throws_skills_prompt_adding += f'Игрок также совершил проверку навыка "{skills[skills_ind]}". У него получилось: "{s}". '
         
         if any(throws_skills_prompt_adding):
             throws_skills_prompt_adding += '''Оценить результат можно по следующей таблице:
@@ -477,6 +481,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
 Хорошо: 16-20 (что-то может получиться, но не то, чего можно не ждать, ход событий может немного изменится)
 Очень хорошо: 21-25 (игроку удается совершить нечто, выходящее за рамки обычного)
 Невероятно, сделал невозможное: 26-30 (игроку удается совершить невозможное, ход событий меняется колоссально)'''
+
+        if need_change_scenario(self.general_chat):
+            change_scenario(self.general_chat, throws_skills_prompt_adding=throws_skills_prompt_adding)
+
 
         msg = generate_answer(characters, self.general_chat, chat,
                               prompt_class=prompt_class,

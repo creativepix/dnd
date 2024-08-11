@@ -3,11 +3,12 @@ from io import BytesIO
 import base64
 from PIL import Image
 from secret_data import OPENAI_API_KEY
+import json
 
 client = OpenAI(api_key=OPENAI_API_KEY)
-tokens_used = int(open("tokens_used").read())
+tokens_used = json.load(open("tokens_used"))
 
-def generate_text(txt, system_txt=None, model="gpt-4o-mini"):
+def generate_text(txt, system_txt=None, model="gpt-4o-mini", max_tokens=None):
     global tokens_used
     messages = []
     if system_txt:
@@ -15,23 +16,33 @@ def generate_text(txt, system_txt=None, model="gpt-4o-mini"):
     messages.append({"role": "user", "content": txt})
     completion = client.chat.completions.create(
         model=model,
-        messages=messages
+        messages=messages,
+        max_tokens=max_tokens
     )
-    tokens_used += completion.usage.total_tokens
+    
+    if model not in tokens_used:
+        tokens_used[model] = 0
+    tokens_used[model] += completion.usage.total_tokens
     with open("tokens_used", "w") as f:
-        f.write(str(tokens_used))
+        json.dump(tokens_used, f)
+
     message = completion.choices[0].message.content
     return message
 
-def generate_text_by_msgs(messages, model="gpt-4o-mini"):
+def generate_text_by_msgs(messages, model="gpt-4o-mini", max_tokens=None):
     global tokens_used
     completion = client.chat.completions.create(
         model=model,
-        messages=messages
+        messages=messages,
+        max_tokens=max_tokens
     )
-    tokens_used += completion.usage.total_tokens
+    
+    if model not in tokens_used:
+        tokens_used[model] = 0
+    tokens_used[model] += completion.usage.total_tokens
     with open("tokens_used", "w") as f:
-        f.write(str(tokens_used))
+        json.dump(tokens_used, f)
+
     message = completion.choices[0].message.content
     return message
 
