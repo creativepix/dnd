@@ -12,7 +12,8 @@ import itertools
 from dungeon_master import create_scenario_parts, get_character_info, generate_answer, \
     classify_personal_prompt, sync_generate_answer, make_content_shorter, sync_make_content_shorter, \
     check_need_spells, check_need_equipment, classify_throws_skills, get_exact_throws, get_exact_skills, \
-    change_equipment, what_equipment_changed
+    change_equipment, what_equipment_changed, check_next_part, check_equipment, check_spells, generate_intro, \
+    sync_check_next_part
 import random
 
 WAIT_SECONDS = 0.5
@@ -219,7 +220,7 @@ class WaitingConsumer(AsyncWebsocketConsumer):
             chat.characters.add(char2)
             chat.save()
         
-        first_msg = generate_answer(self.room.characters.all(), general_chat, general_chat)
+        first_msg = generate_intro(self.room)
         first_short_msg = make_content_shorter(first_msg)
         Message.objects.create(chat=general_chat, character=characterDM, content=first_msg, short_content=first_short_msg)
 
@@ -342,9 +343,13 @@ class RoomConsumer(AsyncWebsocketConsumer):
                         }
                     )
                 message_text_data = await self.createMessage(self.general_chat, msg, short_content=short_msg, character=characterDM)
+            
+                if await sync_check_next_part(self.general_chat):
+                    await self.go_next_part()
             elif prompt_class == 3:
                 message_text_data = await self.createMessage(chat, msg, short_content=short_msg, character=characterDM)
-
+            
+            
         if chat != self.general_chat:
             await self.set_chat_block_status(chat, False)
             await self.channel_layer.group_send(
@@ -364,7 +369,19 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
-#check_need_spells, check_need_equipment, classify_throws_skills, get_exact_throws, get_exact_skills
+    
+    @sync_to_async
+    def go_next_part(self):
+        current_part = self.room.scenario.scenariostate.current_part
+        if current_part.is_final:
+            #TODO: end game
+            print("GAME ENDED")
+            return
+        scenario_parts = list(self.general_chat.room.scenario.scenariopart_set.all())
+        next_part = scenario_parts[scenario_parts.index(current_part) + 1]
+        self.room.scenario.scenariostate.current_part = next_part
+        self.room.scenario.scenariostate.save()
+
     @sync_to_async
     def generate_action_answer(self, characters, message, chat):
         prompt_class = 4
@@ -376,16 +393,16 @@ class RoomConsumer(AsyncWebsocketConsumer):
         throws_skills_prompt_adding = ""
         need_spells = check_need_spells(message)
         if need_spells:
-            if not check_spells(spells):
+            if not check_spells(message, spells):
                 cannot_make_prompt = "У игрока не хватает необходимых навыков владения магией"
         else:
             need_equipment = check_need_equipment(message)
             if need_equipment:
-                if not check_equipment(equipment):
+                if not check_equipment(message, equipment):
                     cannot_make_prompt = "У игрока не хватает необходимых предметов (их нет в 'инвентаре' - но слово 'инвентарь' использовать при генерации не надо)"
             else:
                 throws_skills_class = classify_throws_skills(message)
-                r = rand.randint(1, 20)
+                r = random.randint(1, 20)
                 prof = self.character.stats.proficiency_bonus
                 if throws_skills_class == 1:
                     throws_ind = get_exact_throws(message)
@@ -456,17 +473,16 @@ class RoomConsumer(AsyncWebsocketConsumer):
             throws_skills_prompt_adding += '''Оценить результат можно по следующей таблице:
 Очень ужасно: 0-5 (что-то идет не так, всё проходит неудачно)
 Плохо: 6-10 (есть вероятность на проявление какого-то нехорошего события)
-Средне: 11-15 (ничего необычного не может произойти)
-Хорошо: 16-20 (что-то может получиться, но не то, чего можно не ждать)
+Средне: 11-15 (ничего необычного не может произойти, ход событий не особо меняется)
+Хорошо: 16-20 (что-то может получиться, но не то, чего можно не ждать, ход событий может немного изменится)
 Очень хорошо: 21-25 (игроку удается совершить нечто, выходящее за рамки обычного)
-Невероятно, сделал невозможное: 26-30 (игроку удается совершить невозможное)'''
+Невероятно, сделал невозможное: 26-30 (игроку удается совершить невозможное, ход событий меняется колоссально)'''
 
         msg = generate_answer(characters, self.general_chat, chat,
                               prompt_class=prompt_class,
                               cannot_make_prompt=cannot_make_prompt,
                               throws_skills_prompt_adding=throws_skills_prompt_adding)
-        #TODO: go to next part or not
-        
+
         if any(out_adding):
             msg = out_adding + msg
         equipment_changing = what_equipment_changed(msg)

@@ -6,6 +6,7 @@ import re
 from asgiref.sync import sync_to_async
 
 MAX_CONTENT_SIZE = 1024
+MAX_PERSONAL_CONTENT_SIZE = 256
 
 def extract_parts(text):
     pattern = r'\[\d+\](.*?)(?=\[\d+\]|$)'
@@ -86,19 +87,28 @@ def classify_personal_prompt(prompt):
 Твой ответ должен быть в формате: [[число]]
 
 Примеры классификации:
-"Абракадабра!" - [[1]]
+"freererh уа" - [[1]]
 "Эй, боб, привет)" - [[2]]
 "Как думаете, я могу это сделать?" - [[2]]
 "Я могу заброситься на спину этого дракона?" - [[3]]
 "Я хочу взять камень" - [[4]]
+"Я ухожу из трактира" - [[4]]
+"Я отвечаю: не хочу-небуду" - [[4]]
+"Да, я готов" - [[4]]
+"Я настаиваю" - [[4]]
 
 Помни, что ты не отвечаешь на запрос пользователя, а лишь классифицируешь его!
 """
     prompt = "Запрос пользователя:\n" + prompt
     out = generate_text(prompt, system_prompt)
     try:
-        return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        prompt_class = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        if prompt_class == 2:
+            prompt_class = 4
+        print('prompt_class', prompt_class, out)
+        return prompt_class
     except Exception:
+        print("prompt_class. ERROR: 1")
         return 1
 
 def check_need_equipment(prompt):
@@ -371,26 +381,16 @@ def get_characters_info_prompt(characters):
         charid2id[character.id] = i + 1
     return prompt
 
-#prompt_class: 3 - ask; 4 - action
-def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_prompt=0, throws_skills_prompt_adding=""):
+def get_messages_history_prompt(chat, max_content_size=MAX_CONTENT_SIZE, characters=None):
+    if characters is None:
+        characters = chat.room.characters.all()
     charid2id = {}
     for i, character in enumerate(characters, start=1):
         charid2id[character.id] = i
     
-    if any(cannot_make_prompt):
-        insertion = 'контекст, в котором говорится, что игрок не может совершить данное действие по причине: ' + cannot_make_prompt
-    elif prompt_class == 4:
-        insertion = 'продолжение сюжета'
-    else:
-        #if prompt_class == 3:
-        insertion = 'ответ на вопрос пользователя, но без генерации продолжения сценария' 
-    
-    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо сгенерировать {insertion}.
-{get_characters_info_prompt(characters)}"""
-    messages = [{"role": "system", "content": prompt0}]
-    
+    messages = []
     full_content = ""
-    for message in reversed(general_chat.message_set.all()):
+    for message in reversed(chat.message_set.all()):
         if any(message.short_content):
             content = message.short_content
         else:
@@ -403,9 +403,39 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
         if len(full_content + content) > MAX_CONTENT_SIZE:
             content = content[:MAX_CONTENT_SIZE - len(full_content) + 2]
         full_content += content
-        messages.insert(1, {"role": role, "content": content})
+        messages.insert(0, {"role": role, "content": content})
         if len(full_content) > MAX_CONTENT_SIZE:
             break
+    return messages
+    
+def generate_intro(room):
+    characters = room.characters.all()
+    current_part = room.scenario.scenariostate.current_part
+    prompt = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будет доступна первая часть сюжета. Тебе необходимо сгенерировать начало.
+{get_characters_info_prompt(characters)}
+
+Вот та часть сюжета, которую необходимо сгенерировать:
+{current_part.content}
+
+НЕ ПИШИ много текста. НЕ ДЕЛАЙ очень много действий. Помни, что ты в следующий раз также продолжишь сюжет и "подведение к другой части"! Твое сообщение не должно быть большим!
+Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение"""
+    txt = generate_text(prompt)
+    return txt
+
+#prompt_class: 3 - ask; 4 - action
+def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_prompt="", throws_skills_prompt_adding=""):
+    if any(cannot_make_prompt):
+        insertion = 'контекст, в котором говорится, что игрок не может совершить данное действие по причине: ' + cannot_make_prompt
+    elif prompt_class == 4:
+        insertion = 'продолжение сюжета'
+    else:
+        #if prompt_class == 3:
+        insertion = 'ответ на вопрос пользователя, но без генерации продолжения сценария' 
+    
+    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо сгенерировать {insertion}.
+{get_characters_info_prompt(characters)}"""
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat, characters=characters)
     
     scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
     current_part = general_chat.room.scenario.scenariostate.current_part
@@ -423,14 +453,23 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
 """
             else:
                 next_part = scenario_parts[scenario_parts.index(current_part) + 1]
-                prompt_last += f"""\nТебе необходимо подводить игроков к следующей части сюжета:
+#                prompt_last += f"""\nТебе необходимо подводить игроков к следующей части сюжета:
+#{next_part.content}
+#
+#Помни, что тебе необходимо ПОДВЕСТИ их к следующему этапу, но помни, что ты их лишь подводишь! Ты не обязан ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
+#Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение
+#НЕ ПИШИ много текста. НЕ ДЕЛАЙ очень много действий. Помни, что ты в следующий раз также продолжишь сюжет и "подведение к другой части"! Твое сообщение не должно быть большим!
+#"""
+                prompt_last += f"""\nТы должен учитывать, что игроки двигаются по сюжету в эту сторону:
 {next_part.content}
 
-Помни, что тебе необходимо ПОДВЕСТИ их к следующему этапу, но помни, что ты их лишь подводишь! Ты не обязан ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
+Помни, что ты не должен сам их подводить к следующей части сюжета: пытайся генерировать так, чтобы игроки всё ещё находились в старой части сюжета. В этом запросе максимум, что они могут сделать - это сделать небольшой шаг в сторону новой части, но не сразу переходя к ней.
+Ты не обязан ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
 Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение
 НЕ ПИШИ много текста. НЕ ДЕЛАЙ очень много действий. Помни, что ты в следующий раз также продолжишь сюжет и "подведение к другой части"! Твое сообщение не должно быть большим!
 """
         else:
+            messages += get_messages_history_prompt(chat, characters=characters, max_content_size=MAX_PERSONAL_CONTENT_SIZE)
             prompt_last += "Помни, что ты лишь отвечаешь на вопрос пользователя, а не генерируешь сценарий! Если требуется, то дай рекомендации/советы игроку"
     else:
         prompt_last += "Помни, что ты лишь генерируешь контекст для отказа игроку в действии, а не генерируешь сценарий! Если требуется, то дай рекомендации/советы игроку"
@@ -439,7 +478,46 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
         prompt_last += "\n\nНЕ ЗАБЫВАЙ УЧЕСТЬ РЕЗУЛЬТАТ ПОСЛЕДНЕГО БРОСКА КУБИКА ИГРОКОМ"
     messages += [{"role": "system", "content": prompt_last}]
     txt = generate_text_by_msgs(messages=messages)
+    print(messages)
     return txt
+
+def check_next_part(general_chat):
+    """0 - no; 1 - yes"""
+    scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
+    current_part = general_chat.room.scenario.scenariostate.current_part
+    current_part_ind = scenario_parts.index(current_part)
+    if not current_part.is_final:
+        next_part = scenario_parts[current_part_ind + 1]
+    
+    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо понять, перешел ли сюжет к следующей части."""
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat)
+    prompt_last = f"""Твой вывод должен быть в формате:
+[[0]] - герои НЕ достигли {'следующей части сценария' if not current_part.is_final else 'финала, и сюжет заканчивается'}
+[[1]] - герои достигли {'следующей части сценария' if not current_part.is_final else 'финала, и сюжет заканчивается'}
+
+Нынешняя часть сценария:
+{current_part.content}
+"""
+    if not current_part.is_final:
+        prompt_last += f"""Следующая часть сценария:
+{next_part.content}"""
+    prompt_last += """
+Помни, что тебе необходимо понять, перешел ли сюжет к следующей части."""
+    messages += [{"role": "system", "content": prompt_last}]
+    out = generate_text_by_msgs(messages=messages)
+    #print(messages)
+    try:
+        out = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        print(f'current part: {current_part_ind}, next part?', out)
+        return out
+    except Exception:
+        print(f'ERROR. current part: {current_part_ind}, next part, out:', out)
+        return 1
+
+@sync_to_async
+def sync_check_next_part(*args, **kwargs):
+    return check_next_part(*args, **kwargs)
 
 @sync_to_async
 def sync_generate_answer(*args, **kwargs):
