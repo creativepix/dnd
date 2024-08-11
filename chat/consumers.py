@@ -13,10 +13,14 @@ from dungeon_master import create_scenario_parts, get_character_info, generate_a
     classify_personal_prompt, sync_generate_answer, make_content_shorter, sync_make_content_shorter, \
     check_need_spells, check_need_equipment, classify_throws_skills, get_exact_throws, get_exact_skills, \
     change_equipment, what_equipment_changed, check_next_part, check_equipment, check_spells, generate_intro, \
-    sync_check_next_part, need_change_scenario, change_scenario
+    sync_check_next_part, need_change_scenario, change_scenario, start_fight, generate_fight_turn, is_starting_fight
 import random
 
 WAIT_SECONDS = 0.5
+
+@sync_to_async
+def sync_print(txt):
+    print(txt)
 
 @sync_to_async
 def get_character(character_id):
@@ -294,6 +298,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
+            #TODO generate answer vs fighting answer
             loop = asyncio.get_event_loop()
             loop.create_task(self.generate_answer(text_data_json["message"], chat))
         elif text_data_json["type"] == "change_chat_block_status":
@@ -318,6 +323,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                         "blocked_chat_ids": await self.get_blocked_chat_ids()}))
     
     async def generate_answer(self, message, chat):
+        await sync_print(self.general_chat.room.scenario.scenariostate.fight_state)
         if chat.is_friends:
             return
         characters = await get_room_characters(self.room)
@@ -328,27 +334,39 @@ class RoomConsumer(AsyncWebsocketConsumer):
             prompt_class = 4
         else:
             prompt_class = 3
-        message_text_data = None
+        message_text_data, message_text_data2 = None, None
         if prompt_class in [3, 4]:
             if prompt_class == 3:
                 msg = await sync_generate_answer(characters, self.general_chat, chat, prompt_class=prompt_class)
             else:
                 msg = await self.generate_action_answer(characters, message, chat)
             short_msg = await sync_make_content_shorter(msg)
-            if prompt_class == 4 or chat == self.general_chat:
-                if chat != self.general_chat:
-                    # resend personal message to general chat
-                    user_message_text_data = await self.createMessage(self.general_chat, f"Переслано:\n{message}")
-                    await self.channel_layer.group_send(
-                        self.room_group_name,
-                        {
-                            'type': 'send_data',
-                            'data': user_message_text_data,
-                        }
-                    )
+            if prompt_class == 4:
+                #if chat != self.general_chat:
+                #    # resend personal message to general chat
+                #    user_message_text_data = await self.createMessage(self.general_chat, f"Переслано:\n{message}")
+                #    await self.channel_layer.group_send(
+                #        self.room_group_name,
+                #        {
+                #            'type': 'send_data',
+                #            'data': user_message_text_data,
+                #        }
+                #    )
+                #TODO: self.room.scenario.scenariostate.fight_state is not None = false; change DB in fight_state make scenariostate
+                await sync_print(chat == self.general_chat)
+                await sync_print(chat.room.scenario.scenariostate.fight_state)
+                await sync_print(self.general_chat.room.scenario.scenariostate.fight_state)
+                msg = "1" + msg if self.room.scenario.scenariostate.fight_state is not None else "0" + msg
                 message_text_data = await self.createMessage(self.general_chat, msg, short_content=short_msg, character=characterDM)
             
-                if await sync_check_next_part(self.general_chat):
+                is_fighting = self.room.scenario.scenariostate.fight_state is not None
+                if is_fighting:
+                    initiative_order = self.room.scenario.scenariostate.fight_state.get_initiative_order()
+                    #if initiative_order[0] == -1:
+                    msg = await self.generate_fight_monster_turn()
+                    short_msg = await sync_make_content_shorter(msg)
+                    message_text_data2 = await self.createMessage(self.general_chat, msg, short_content=short_msg, character=characterDM)
+                elif await sync_check_next_part(self.general_chat):
                     await self.go_next_part()
             elif prompt_class == 3:
                 message_text_data = await self.createMessage(chat, msg, short_content=short_msg, character=characterDM)
@@ -365,7 +383,65 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 }
             )
 
-        if message_text_data is not None:
+        for txt_data in [message_text_data, message_text_data2]:
+            if txt_data is not None:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'send_data',
+                        'data': txt_data,
+                    }
+                )
+        
+        if is_fighting:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'send_data',
+                    'data': json.dumps({
+                        'type': 'update_is_blocked_by_fighting_status',
+                        'status':  False   
+                    }),
+                }
+            )
+            initiative_order = self.room.scenario.scenariostate.fight_state.get_initiative_order()
+            #await self.go_next_fight_round()
+            #await self.channel_layer.group_send(
+            #        self.room_group_name,
+            #        {
+            #            'type': 'next_fight_turn',
+            #            'character_id_turn': characters[initiative_order[0]].id,
+            #        }
+            #    )
+    
+    async def next_fight_turn(self, event):
+        if self.character.id != event["character_id_turn"]:
+            return
+        msg = None
+        if self.character.stats.failure >= 3:
+            msg = f"К сожалению, персонаж {self.character.name} уже покинул наш мир"
+        else:
+            is_dying = self.character.stats.success != 0 or self.character.stats.failure
+            if is_dying:
+                r = random.randint(1, 20)
+
+                msg = f"""Персонаж {self.character.name} помирает, поэтому бросает спасбросок 1к20 от смерти.
+Выпадает: {r}, что {'не меньше' if r >= 10 else 'меньше'} 10, поэтомуэтот бросок оказался {'успешным' if r >= 10 else 'провальным'}"""
+                if r < 10:
+                    self.character.stats.failure += 1
+                else:
+                    self.character.stats.success += 1
+                if self.character.stats.success >= 3:
+                    msg += "\nК счастью, персонаж стабилизируется. Теперь у него одно здоровье"
+                    await self.stabilize_character()
+                if self.character.stats.failure >= 3:
+                    msg += "\nК несчастью, персонаж погибает"
+            else:
+                await self.send(text_data=json.dumps({
+                    "type": "unblock_fighting_character",
+                }))
+        if msg is not None:
+            message_text_data = await self.createMessage(self.general_chat, msg, character=characterDM)
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -373,7 +449,31 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
+            
+            initiative_order = self.room.scenario.scenariostate.fight_state.get_initiative_order()
+            await self.go_next_fight_round()
+            await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'next_fight_turn',
+                        'character_id_turn': characters[initiative_order[0]].id,
+                    }
+                )
     
+    @sync_to_async
+    def stabilize_character(self):
+        self.character.stats.success = 0
+        self.character.stats.failure = 0
+        self.character.stats.health = 1
+        self.character.stats.save()
+    
+    @sync_to_async
+    def go_next_fight_round(self):
+        initiative_order = self.room.scenario.scenariostate.fight_state.get_initiative_order()
+        initiative_order = initiative_order[1:] + [initiative_order[0]]
+        self.room.scenario.scenariostate.fight_state.initiative_order = initiative_order
+        self.room.scenario.scenariostate.fight_state.save()
+
     @sync_to_async
     def go_next_part(self):
         current_part = self.room.scenario.scenariostate.current_part
@@ -385,9 +485,20 @@ class RoomConsumer(AsyncWebsocketConsumer):
         next_part = scenario_parts[scenario_parts.index(current_part) + 1]
         self.room.scenario.scenariostate.current_part = next_part
         self.room.scenario.scenariostate.save()
+    
+    @sync_to_async
+    def generate_fight_monster_turn(self):
+        fight_state = self.room.scenario.scenariostate.fight_state
+        out = generate_fight_turn(self.general_chat)
+        initiative_order = fight_state.get_initiative_order()
+        initiative_order = initiative_order[1:] + [initiative_order[0]]
+        fight_state.initiative_order = " ".join(map(str, initiative_order))
+        fight_state.save()
+        return out
 
     @sync_to_async
     def generate_action_answer(self, characters, message, chat):
+        is_fighting = self.room.scenario.scenariostate.fight_state is not None
         prompt_class = 4
         out_adding = ""
         spells = self.character.stats.attacks_spellcasting
@@ -482,14 +593,19 @@ class RoomConsumer(AsyncWebsocketConsumer):
 Очень хорошо: 21-25 (игроку удается совершить нечто, выходящее за рамки обычного)
 Невероятно, сделал невозможное: 26-30 (игроку удается совершить невозможное, ход событий меняется колоссально)'''
 
-        if need_change_scenario(self.general_chat):
-            change_scenario(self.general_chat, throws_skills_prompt_adding=throws_skills_prompt_adding)
-
+        if not any(cannot_make_prompt) and not is_fighting:
+            if is_starting_fight(chat):
+                out = start_fight(chat)
+                print(chat.room.scenario.scenariostate.fight_state)
+                return out
+            if need_change_scenario(self.general_chat):
+                change_scenario(self.general_chat, throws_skills_prompt_adding=throws_skills_prompt_adding)
 
         msg = generate_answer(characters, self.general_chat, chat,
                               prompt_class=prompt_class,
                               cannot_make_prompt=cannot_make_prompt,
-                              throws_skills_prompt_adding=throws_skills_prompt_adding)
+                              throws_skills_prompt_adding=throws_skills_prompt_adding,
+                              is_fighting=is_fighting)
 
         if any(out_adding):
             msg = out_adding + msg

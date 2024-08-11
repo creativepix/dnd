@@ -48,15 +48,26 @@ def chat_home(request):
 def dnd_room(request, room_name):
     #general chat is always first, in characters DM is first
     room = Room.objects.get(name=room_name)
+    characters = room.characters.all()
     character = room.characters.filter(user=request.user)[0]
     chats_data = list(zip(room.chat_set.all(), 
                           [chat.characters.all() for chat in room.chat_set.all()], 
                           [chat.message_set.all() for chat in room.chat_set.all()]))
     chats_data = [{"chat": elem[0], "characters": elem[1], "messages": elem[2]} for elem in chats_data]
+    
+    if room.scenario.scenariostate.fight_state is None:
+        is_blocked_by_fighting = False
+    else:
+        initiative_order = room.scenario.scenariostate.fight_state.get_initiative_order()
+        if initiative_order[0] == -1:
+            is_blocked_by_fighting = True
+        else:
+            is_blocked_by_fighting = characters[initiative_order[0]].id != character.id
     return render(request, 'chat/chatroom.html', {
         'room': room,
         'chats_data': chats_data,
         'character': character,
         'characterDM': characterDM,
         'title': room_name,
+        'is_blocked_by_fighting': is_blocked_by_fighting,
     })

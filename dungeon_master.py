@@ -1,13 +1,18 @@
 from users.models import User, Character, Stats
+from chat.models import ScenarioFightState
 from secret_data import DM_PARAMS
 import django
 from openai_api import generate_text, generate_text_by_msgs
 import re
 from asgiref.sync import sync_to_async
+import math
+import random
 
 MAX_CONTENT_SIZE = 4096
 MAX_PERSONAL_CONTENT_SIZE = 512
 CHANGING_SCENARIO_PARTS_N = 3
+FIGHT_MESSAGES_LAST_INFO_N = 4
+MEAN_FIGHT_ROUNDS_K = 10
 
 def extract_parts(text):
     pattern = r'\[\d+\](.*?)(?=\[\d+\]|$)'
@@ -388,7 +393,7 @@ def get_characters_info_prompt(characters):
         charid2id[character.id] = i + 1
     return prompt
 
-def get_messages_history_prompt(chat, max_content_size=MAX_CONTENT_SIZE, characters=None):
+def get_messages_history_prompt(chat, maxn=None, max_content_size=MAX_CONTENT_SIZE, characters=None):
     if characters is None:
         characters = chat.room.characters.all()
     charid2id = {}
@@ -397,7 +402,9 @@ def get_messages_history_prompt(chat, max_content_size=MAX_CONTENT_SIZE, charact
     
     messages = []
     full_content = ""
-    for message in reversed(chat.message_set.all()):
+    for i, message in enumerate(reversed(chat.message_set.all())):
+        if maxn is not None and i >= maxn:
+            break
         if any(message.short_content):
             content = message.short_content
         else:
@@ -430,12 +437,17 @@ def generate_intro(room):
     return txt
 
 #prompt_class: 3 - ask; 4 - action
-def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_prompt="", throws_skills_prompt_adding=""):
+def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_prompt="", throws_skills_prompt_adding="",
+                    is_fighting=False, is_fighting_end=False):
     scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
     current_part = general_chat.room.scenario.scenariostate.current_part
     
     if any(cannot_make_prompt):
         insertion = 'контекст, в котором говорится, что игрок не может совершить данное действие по причине: ' + cannot_make_prompt
+    elif is_fighting_end:
+        insertion = "конец битвы (герои одержали победу)"
+    elif is_fighting:
+        insertion = "продолжение битвы"
     elif prompt_class == 4:
         insertion = 'продолжение сюжета'
     else:
@@ -445,22 +457,34 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
     prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо сгенерировать {insertion}.
 {get_characters_info_prompt(characters)}"""
     if not any(cannot_make_prompt) and prompt_class == 4 and not current_part.is_final:
-        
         next_part = scenario_parts[scenario_parts.index(current_part) + 1]
         prompt0 += f"""Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо сгенерировать {insertion}.
 Сейчас игроки находятся в этой части сюжета:
 {current_part.content}
-
-Ты должен учитывать, что игроки двигаются по сюжету в эту сторону:
-{next_part.content}
 """
+#    if not is_fighting or is_fighting_end:
+#        prompt0 += f"""Ты должен учитывать, что игроки двигаются по сюжету в эту сторону:
+#{next_part.content}"""
 
     messages = [{"role": "system", "content": prompt0}]
     messages += get_messages_history_prompt(general_chat, characters=characters)
     
     next_part = scenario_parts[scenario_parts.index(current_part) + 1]
     prompt_last = ""
-    if not any(cannot_make_prompt):
+    if is_fighting_end:
+        prompt_last += f"""Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо сгенерировать {insertion}.
+Помни, что ты генерируешь продолжение сюжета, поэтому учитывай предыдущую историю.
+Ты не должен ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
+Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение.
+НЕ ДЕЛАЙ очень много действий. Твое сообщение не должно быть по размеру средним.
+"""
+    elif is_fighting:
+        prompt_last += f"""Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо сгенерировать {insertion}.
+Ты не должен сразу прекращать сюжет в данном месте.
+Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение.
+НЕ ДЕЛАЙ очень много действий. Твое сообщение не должно быть по размеру средним.
+"""
+    elif not any(cannot_make_prompt):
         if prompt_class == 4:
             if current_part.is_final:
                 prompt_last += """\nНа данный момент герои находятся на финальной части сценария. Тебе необходимо подвести их к финалу/заключению, но помни, что ты их лишь подводишь! Ты не обязан ими выполнять какие-либо действия. Также не обязан сразу прекращать сюжет в данном месте - сюжет нужно прекращать, только если герои сами подошли к заключинию (а не ты их резко за ручку привел)
@@ -476,15 +500,7 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
 Ты не должен ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
 Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение.
 НЕ ДЕЛАЙ очень много действий. Твое сообщение не должно быть по размеру средним.
-"""
-#                prompt_last += f"""\nТебе необходимо подводить игроков к следующей части сюжета:
-#{next_part.content}
-#
-#Помни, что тебе необходимо ПОДВЕСТИ их к следующему этапу, но помни, что ты их лишь подводишь! Ты не обязан ими выполнять какие-либо действия. Также ты не должен сразу прекращать сюжет в данном месте.
-#Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение
-#НЕ ПИШИ много текста. НЕ ДЕЛАЙ очень много действий. Помни, что ты в следующий раз также продолжишь сюжет и "подведение к другой части"! Твое сообщение не должно быть большим!
-#"""
-                
+""" 
         else:
             messages += get_messages_history_prompt(chat, characters=characters, max_content_size=MAX_PERSONAL_CONTENT_SIZE)
             prompt_last += "Помни, что ты лишь отвечаешь на вопрос пользователя, а не генерируешь сценарий! Если требуется, то дай рекомендации/советы игроку"
@@ -583,6 +599,8 @@ def what_equipment_changed(message):
         return out
     except Exception:
         return [0]
+
+
 
 def change_equipment(equipment, cmd, character_info):
     system_prompt = f"""Ты - DungeonMaster в игре Dungeon&Dragons. Игрок совершил какое-то действие, после которого его инвентарь должен измениться. Тебе необходимо изменить его инвентарь согласно приведенной команде.
@@ -723,3 +741,156 @@ def change_scenario(general_chat, throws_skills_prompt_adding=""):
     #    scenario_part.save()
     #    #shorted_new_parts_content.append(scenario_part.content)
     #print("New short scenario parts:", shorted_new_parts_content)
+
+def is_starting_fight(general_chat):
+    """0 - no; 1 - yes"""
+    characters = general_chat.characters.all()
+    prompt0 = f"Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо понять, последние действия игроков начнут какую-то драку/битву или нет."
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat, maxn=FIGHT_MESSAGES_LAST_INFO_N, characters=characters)
+    
+    prompt_last = f"""
+Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо понять, последние действия игроков начнут какую-то драку/битву или нет.
+Выведи ответ в формате:
+[[0]] - битва не начнется
+[[1]] - битва начнется
+
+Примеры классификаций:
+Сюжет: На отдых вы решили взремнуть, но к вам подкрадывается группа грабителей
+Вывод: [[0]]
+Пояснение: они лишь подкрадываются, но не нападают
+
+Сюжет: после прогулки и захода в таверну ты решаешь присмотреться к посетителям. "Я ударяю его в голову"
+Вывод: [[1]]
+Пояснение: здесь явное начало драки
+"""
+    messages += [{"role": "system", "content": prompt_last}]
+    out = generate_text_by_msgs(messages=messages, model="gpt-3.5-turbo")
+    try:
+        out = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        print(f"is starting fight: {out}")
+        return out
+    except Exception:
+        print(f'ERROR. is fighting start: 0 ', out)
+        return 0
+
+def get_mean_rand_stat(stat_vals):
+    return int(max(0, sum(stat_vals) + random.randint(-int(sum(stat_vals) / 3), int(sum(stat_vals) / 3))) / len(stat_vals))
+
+def start_fight(general_chat):
+    characters = general_chat.room.characters.all()
+    
+    characters_hits = [char.stats.current_hit for char in characters]
+    mean_hit = get_mean_rand_stat(characters_hits)
+    health = mean_hit * MEAN_FIGHT_ROUNDS_K
+    
+    characters_levels = [char.stats.level for char in characters]
+    mean_level = get_mean_rand_stat(characters_levels)
+    monster_class = mean_level
+    
+    characters_initiatives = [max(0, char.stats.initiative) for char in characters]
+    mean_initiative = get_mean_rand_stat(characters_initiatives)
+    monster_initiative = mean_initiative
+    
+    inititatives = []
+    while any([inititatives.count(elem) > 1 for elem in inititatives]) or len(inititatives) == 0:
+        inititatives = [char.stats.initiative + random.randint(1, 20) for char in characters] + [monster_initiative + random.randint(1, 20)]
+    inititatives = [(initiative, i) for i, initiative in enumerate(inititatives)]
+    inititatives.sort(reverse=True)
+    
+    initiative_order = [(pair[1] if pair[1] != len (characters) else -1, pair[0]) for pair in inititatives] # if it is monster than -1
+    
+    cube_class = random.choices([4, 6, 8, 10, 12, 16, 20], weights=[10, 20, 35, 50, 35, 20, 10])[0]
+    
+    
+    prompt0 = f"Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Герои приняли бой с кем-то. Тебе необходимо будет выяснить, с кем именно они борются"
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat, maxn=FIGHT_MESSAGES_LAST_INFO_N, characters=characters)
+    prompt_last = f"""
+Ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо будет выяснить, с кем именно они борются
+Выведи ответ в формате:
+[[имя/название существ, с которыми начинается битва]]
+
+Примеры:
+Сюжет: Два героя решили передохнуть в таверне. Один из них решил не скучать и ударил бармена по голове
+Вывод: [[бармен]]
+
+Сюжет: на отчаянных героев в пещере напал дракон. Он дышит огнем, готов всех испепелить
+Вывод: [[дракон]]
+"""
+    messages += [{"role": "system", "content": prompt_last}]
+    monster_info = generate_text_by_msgs(messages=messages, model="gpt-3.5-turbo")
+    try:
+        monster_info = re.findall(r'\[\[(\d+)\]\]', out)[0]
+    except Exception:
+        monster_info = "неопределенный"
+    
+    out = f"""Ваши действия приводят к битве с {monster_info}.
+Его здоровье: {health}
+Его уровень: {monster_class}
+Его кубики хитов: {monster_class}к{cube_class}
+
+Инициатива распределена в следующем порядке (определяется как [личная инициатива + 1к20]):"""
+    for chari, initiative in initiative_order:
+        if chari == -1:
+            out += f"\n{monster_info} (инициатива: {monster_initiative}+{initiative-monster_initiative}={initiative})"
+        else:
+            out += f"\n{characters[chari].name} (инициатива: {characters[chari].stats.initiative}+{initiative-characters[chari].stats.initiative}={initiative})"
+    
+    fight_state = ScenarioFightState(monster_info=monster_info, health=health, monster_class=monster_class, cube_class=cube_class, initiative_order=" ".join(map(lambda x: str(x[0]), initiative_order)))
+    fight_state.save()
+    general_chat.room.scenario.scenariostate.fight_state = fight_state
+    general_chat.room.scenario.scenariostate.save()
+    print(general_chat.room.scenario)
+    return out
+
+def generate_fight_turn(general_chat):
+    """0 - no; 1 - yes"""
+    characters = general_chat.room.characters.all()
+    fight_state = general_chat.room.scenario.scenariostate.fight_state
+    
+    character_fight = None
+    while character_fight is None or character_fight == characterDM or character_fight.stats.failure >= 3:
+        character_fight = random.choice(characters)
+    is_character_dying = character_fight.stats.success or character_fight.stats.failure
+    hits = []
+    for _ in range(fight_state.monster_class):
+        hits.append(random.randint(1, fight_state.cube_class))
+    hit = sum(hits)    
+    
+    fight_state = general_chat.room.scenario.scenariostate.fight_state
+    prompt0 = f"""Ты - один из существ в игре Dungeon&Dragons. С тобой в битву вступили герои. Тебе будут доступны все действия героев до этого момента. Тебе необходимо описать свои действия с учетом своих статистик
+{get_characters_info_prompt(characters)}\n
+
+Статистики существа/существ/соперников:
+Название: {fight_state.monster_info}
+Уровень соперника: {fight_state.monster_class}
+Какого персонажа соперник атакует: {character_fight.info}
+"""
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat, characters=characters)
+    
+    prompt_last += f"""
+Помни, что ты - {fight_state.monster_info} в игре Dungeon&Dragons. Тебе необходимо свой ход в битве, а именно описать его."""
+    messages += [{"role": "system", "content": prompt_last}]
+    txt = generate_text_by_msgs(messages=messages)
+    
+    adding = f"""Ход соперника.
+Его здоровье: {fight_state.health}
+Его уровень: {fight_state.monster_class}
+Его кубики атаки: {fight_state.monster_class}к{fight_state.cube_class}
+Его значение атаки: {'+'.join(map(str, hits))}={hit}
+
+"""
+    if is_character_dying:
+        adding += "Помираемому персонажу нанесли урон - этот персонаж получает проваленный спасбросок от смерти\n\n"
+        character_fight.stats.failure += 1
+    else:
+        character_fight.stats.armour -= hit
+        if character_fight.stats.armour <= 0:
+            adding += "Персонажу нанесли критический для здоровья урон - теперь он находится на гране смерти и стабилизируется\n\n"
+            character_fight.stats.armour = 0
+    if character_fight.stats.failure >= 3:
+        adding += "Персонаж помирает: у него 3 проваленных спасброска от смерти\n\n"
+    character_fight.stats.save()
+    return adding + txt

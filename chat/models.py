@@ -1,6 +1,7 @@
 import json
 from django.db import models
 from users.models import Character
+from django.contrib.postgres.fields import ArrayField
 
 class Room(models.Model):
     name = models.CharField(max_length=50, primary_key=True)
@@ -58,6 +59,10 @@ class ScenarioFightState(models.Model):
     health = models.IntegerField()
     monster_class = models.IntegerField()
     cube_class = models.IntegerField()
+    initiative_order = models.CharField(max_length=128) # format: x y z o....
+    
+    def get_initiative_order(self):
+        return list(map(int, self.initiative_order.split(" ")))
 
 class ScenarioState(models.Model):
     id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
