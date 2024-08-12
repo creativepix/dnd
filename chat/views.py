@@ -16,29 +16,31 @@ def chat_home(request):
         character = Character.objects.get(id=request.POST["char_id"])
         request.character = character
         room_name = form.cleaned_data['room_name']
-        
-        room = Room.objects.filter(name=room_name)[:]
-        if len(room) == 0:
-            room = Room(name=room_name, is_waiting=True)
-            room.save()
+        if all([el in "qwertyuiopasdfghjklzxcvbnm_" for el in room_name]):
+            room = Room.objects.filter(name=room_name)[:]
+            if len(room) == 0:
+                room = Room(name=room_name, is_waiting=True)
+                room.save()
+            else:
+                room = room[0]
+            if room.characters.filter(user=request.user).exists() and character.id != room.characters.filter(user=request.user)[0].id:
+                messages.warning(request, "Один из ваших персонажей уже в комнате")
+            elif room.is_waiting or room.characters.filter(id=character.id).exists():
+                if not room.is_waiting:
+                    return redirect(f"/rooms/{room.name}")
+                curwaiting = Waiting.objects.filter(room=room_name, character=character)
+                is_ready = curwaiting.exists() and curwaiting[0].is_ready
+
+                db_waitings = Waiting.objects.filter(room=room_name)[:]
+                messages.success(request, f"Joined: {room_name}")
+                return render(request, 'chat/waitingroom.html', 
+                              {'room': room, 'title': room_name, 
+                               'db_waitings': db_waitings, 
+                               'character': character})
+            else:
+                messages.warning(request, "Название комнаты уже используется")
         else:
-            room = room[0]
-        if room.characters.filter(user=request.user).exists() and character.id != room.characters.filter(user=request.user)[0].id:
-            messages.warning(request, "One of your characters is already in room")
-        elif room.is_waiting or room.characters.filter(id=character.id).exists():
-            if not room.is_waiting:
-                return redirect(f"/rooms/{room.name}")
-            curwaiting = Waiting.objects.filter(room=room_name, character=character)
-            is_ready = curwaiting.exists() and curwaiting[0].is_ready
-            
-            db_waitings = Waiting.objects.filter(room=room_name)[:]
-            messages.success(request, f"Joined: {room_name}")
-            return render(request, 'chat/waitingroom.html', 
-                          {'room': room, 'title': room_name, 
-                           'db_waitings': db_waitings, 
-                           'character': character})
-        else:
-            messages.warning(request, "Room name is used")
+            messages.warning(request, "Название комнаты должно содержать только символы: abcdefghijklmnopqrstuvwxyz_")
 
     return render(request, 'chat/index.html', 
                   {'form': form, 'characters': request.user.character_set.all()})

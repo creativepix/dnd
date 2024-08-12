@@ -8,7 +8,7 @@ var customClass = $(".custom-class")[0];
 var i = 0;
 var armourInput = $(".armour-input")[0];
 var initiativeInput = $(".initiative-input")[0];
-var speedInput = $(".speed-input")[0];
+//var speedInput = $(".speed-input")[0];
 var levelInput = $(".level-input")[0];
 var imgInput = $('#d-and-d-image-factionImg');
 
@@ -101,7 +101,7 @@ function updateData(){
     curData["failure"] = $($(".d-and-d-save-failure")[0]).find(".d-and-d-skill-circle.active").length;
     curData["armour"] = armourInput.value;
     curData["initiative"] = initiativeInput.value;
-    curData["speed"] = speedInput.value;
+    curData["speed"] = 30;//speedInput.value;
 
     const backgroundImage = $('.d-and-d-image')[0].style.backgroundImage;
     const match = backgroundImage.match(/url\("data:image\/[a-zA-Z]+;base64,([^\"]+)"\)/);
@@ -164,7 +164,7 @@ function loadData(){
 
     armourInput.value = curData["armour"];
     initiativeInput.value = curData["initiative"];
-    speedInput.value = curData["speed"];
+    //speedInput.value = curData["speed"];
 
     if (curData["image"]){
         $('.d-and-d-image')[0].style.backgroundImage = "url(data:image/png;base64," + curData["image"] + ")";

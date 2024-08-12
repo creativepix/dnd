@@ -8,16 +8,16 @@
     {% csrf_token %}
     <fieldset class="form-group">
       <legend class="border-bottom mb-4">
-        🏴‍☠️Ahoy! Enter a room name to join
+        🐉Хай! Присоединяйтесь к комнате!
       </legend>
       {{ form|crispy }}
     </fieldset>
     <div>
       {% if not characters %}
-      <p>It seems you dont have any character. Create a character in your <a href="/profile">profile</a></p>
+      <p>Кажется, у вас нет персонажей. Создайте нового в <a href="/profile">профиле</a></p>
       {% else %}
       <div class="dropdown">
-        <div class="btn btn-outline-info choose-char-btn">Choose character</div>
+        <div class="btn btn-outline-info choose-char-btn">Выбрать персонажа</div>
         <div class="dropdown-content">
           {% for character in characters %}
           <div class="content-section" id="{{character.id}}">
@@ -30,7 +30,7 @@
       {% endif %}
       <input name="char_id" type="text" class="character-chosen-id" hidden>
       <button class="btn btn-outline-info start-btn" type="submit">
-        Go to adventures 🦜!
+        Начать спуск в сюжет!
       </button>
     </div>
 </div>

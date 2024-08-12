@@ -18,7 +18,7 @@
                     </div>
                     <div class="checkbox-wrapper-8 checkbox-waiting-other-size">
                       <input id="checked-character-{{w.character_id}}" class="tgl tgl-skewed" type="checkbox" disabled {% if w.is_ready %}checked{% endif %}>
-                      <label class="tgl-btn" data-tg-off="Not ready" data-tg-on="Ready"></label>
+                      <label class="tgl-btn" data-tg-off="Гн готов" data-tg-on="Готов"></label>
                     </div>
                 </div>
             </div>
@@ -31,10 +31,6 @@
     </div>
     <br />
     <div class="bottom-area">
-    <div class="my-checkbox-ready checkbox-wrapper-8 checkbox-waiting-init-size text-center">
-      <input class="tgl tgl-skewed" id="cb3-8" type="checkbox" onchange="checkCurrentCharacter(this)" {% if is_ready %}checked{% endif %}/>
-      <label class="tgl-btn" data-tg-off="Not ready" data-tg-on="Ready" for="cb3-8"></label>
-    </div>
     
   </div>
         
@@ -57,6 +53,13 @@
         const waitingSocket = new WebSocket(
           'ws://' + window.location.host + '/ws/waiting/' + roomName + '/' + {{ character.id }} + '/'
         );
+        waitingSocket.onopen = function (e) {
+          html  = '<div class="my-checkbox-ready checkbox-wrapper-8 checkbox-waiting-init-size text-center">';
+          html += '  <input class="tgl tgl-skewed" id="cb3-8" type="checkbox" onchange="checkCurrentCharacter(this)" {% if is_ready %}checked{% endif %}/>';
+          html += '  <label class="tgl-btn" data-tg-off="Не готов" data-tg-on="Готов" for="cb3-8"></label>';
+          html += '</div>';
+          bottomArea.innerHTML += html
+        }
 
         function visualizeGenerating(){
           let html = '<div class="atom-spinner mx-auto">';
@@ -82,7 +85,7 @@
                 html += '        </div>';
                 html += '        <div class="checkbox-wrapper-8 checkbox-waiting-other-size">';
                 html += '          <input id="checked-character-' + data.character_id + '" class="tgl tgl-skewed" type="checkbox" disabled>';
-                html += '          <label class="tgl-btn" data-tg-off="Not ready" data-tg-on="Ready"></label>';
+                html += '          <label class="tgl-btn" data-tg-off="Не готов" data-tg-on="Готов"></label>';
                 html += '        </div>';
                 html += '    </div>';
                 html += '</div>';

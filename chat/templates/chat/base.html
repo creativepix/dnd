@@ -13,9 +13,9 @@
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
 
     {% if title %}
-        <title>Django Chat App - {{ title }}</title>
+        <title>Dungeons&Dragons - {{ title }}</title>
     {% else %}
-        <title>Django Chat App</title>
+        <title>Dungeons&Dragons</title>
     {% endif %}
 
 </head>
@@ -23,26 +23,27 @@
     <header class="site-header">
       <nav class="navbar navbar-expand-md navbar-dark bg-steel fixed-top">
         <div class="container">
-          <a class="navbar-brand mr-4" href="{% url 'chat-home' %}">Django Chat App</a>
+          <a class="navbar-brand mr-4" href="{% url 'chat-home' %}">Dungeons&Dragons</a>
           <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarToggle" aria-controls="navbarToggle" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
           </button>
           <div class="collapse navbar-collapse" id="navbarToggle">
-            <div class="navbar-nav mr-auto">
-              <a class="nav-item nav-link" href="{% url 'chat-home' %}">Home</a>
+            <div class="navbar-nav">
+              <a class="nav-item nav-link" href="{% url 'chat-home' %}">Домой</a>
             </div>
+            <div class="mx-auto"></div>
             <!-- Navbar Right Side -->
             <div class="navbar-nav">
               {% if user.is_authenticated %}
               <img width="50px" class="rounded-circle" style="max-height: 40px; max-width: 40px;" src="{{user.profile.image.url}}">
-                <a class="nav-item nav-link" href="{% url 'profile' %}"> Profile</a>
+                <a class="nav-item nav-link" href="{% url 'profile' %}"> Профиль</a>
                 <form action="{% url 'logout' %}" method="POST">
                   {% csrf_token %}
-                  <a class="nav-item nav-link" href="javascript:;" onclick="this.parentNode.submit()">Logout</a>
+                  <a class="nav-item nav-link" href="javascript:;" onclick="this.parentNode.submit()">Выйти</a>
                 </form>
               {% else %}
-                <a class="nav-item nav-link" href="{% url 'login' %}">Login</a>
-                <a class="nav-item nav-link" href="{% url 'register' %}">Register</a>
+                <a class="nav-item nav-link" href="{% url 'login' %}">Войти</a>
+                <a class="nav-item nav-link" href="{% url 'register' %}">Зарегистрироваться</a>
               {% endif %}
             </div>
           </div>

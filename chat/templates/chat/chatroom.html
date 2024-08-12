@@ -11,7 +11,7 @@
       <!-- User List Sidebar -->
       <div class="col-12 col-md-3 col-lg-2 bg-light border-end d-flex flex-column p-3">
         <div class="d-flex justify-content-between align-items-center mb-4">
-          <h5 class="mb-0">Chats</h5>
+          <h5 class="mb-0">Чаты</h5>
         </div>
         <div class="list-group overflow-auto">
           {% for chat_data in chats_data %}
@@ -25,9 +25,9 @@
               <div class="chat-top-{{chat_data.chat.id}}">
                 <div class="fw-bold pb-2">
                   {% if chat_data.chat.is_general %}
-                  General
+                  Общий
                   {% elif chat_data.chat.is_friends %}
-                  Friends
+                  Друзья
                   {% else %}
                   {% if character == chat_data.characters.0 %}
                   {{ chat_data.characters.1.name }}
@@ -51,7 +51,7 @@
             <img style="max-height:50px;max-width:50px" src="{{chats_data.0.characters.0.image.url}}"
               class="rounded-circle me-3" alt="User 1">
             <div>
-              <h6 class="mb-0">General</h6>
+              <h6 class="mb-0">Общий</h6>
             </div>
           </div>
         </div>
@@ -78,8 +78,8 @@
         <!-- Message Input -->
         <div class="p-3 border-top">
           <div class="input-group">
-            <textarea id="messageInput" class="form-control" placeholder={% if is_blocked_by_fighting %}"The fighting is processing..." disabled{% else %}"Type a message..."{% endif %} rows="1"></textarea>
-            <button class="btn btn-primary send-message-btn" {% if is_blocked_by_fighting %}disabled{% endif %}>Send</button>
+            <textarea id="messageInput" class="form-control" placeholder={% if is_blocked_by_fighting %}"Битва идет..." disabled{% else %}"Напишите сообщение..."{% endif %} rows="1"></textarea>
+            <button class="btn btn-primary send-message-btn" {% if is_blocked_by_fighting %}disabled{% endif %}>Отправить</button>
           </div>
         </div>
         
@@ -171,11 +171,11 @@
       sendBtn.prop("disabled", status != 0);
       messageInput.prop("disabled", status != 0);
       if (status == 1){
-        messageInput.attr("placeholder", "Dungeon Master is thinking...");
+        messageInput.attr("placeholder", "Мастер думает...");
       }else if (status == 2){
-        messageInput.attr("placeholder", "The fighting is processing...");
+        messageInput.attr("placeholder", "Битва идет...");
       }else{
-        messageInput.attr("placeholder", "Type a message...");
+        messageInput.attr("placeholder", "Напишите сообщение...");
       }
     }
 
@@ -213,8 +213,7 @@
       console.error('Chat socket closed unexpectedly');
     };
 
-
-    sendBtn.on("click", function (e) {
+    function sendEvent(){
       if (!messageInput.val()) {
         return;
       }
@@ -237,6 +236,19 @@
         })
       );
       messageInput.val("");
+      textarea.style.height = 'auto';
+      textarea.style.height = (this.scrollHeight) + 'px';
+    }
+
+    textarea.addEventListener("keypress", function(e) {
+      if (event.key == "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendEvent();
+      }
+    });
+
+    sendBtn.on("click", function (e) {
+      sendEvent();
     });
 
     function redirectChat(chatId){

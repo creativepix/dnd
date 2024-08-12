@@ -14,6 +14,7 @@ class Migration(migrations.Migration):
             name='ScenarioFightState',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                
                 ('monster_info', models.CharField(max_length=256)),
                 ('health', models.IntegerField()),
                 ('monster_class', models.IntegerField()),

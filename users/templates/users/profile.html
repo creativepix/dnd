@@ -13,27 +13,27 @@
   <form method="POST" enctype="multipart/form-data">
     {% csrf_token %}
     <fieldset class="form-group">
-      <legend class="border-bottom mb-4">Update Profile</legend>
+      <legend class="border-bottom mb-4">Изменить профиль</legend>
       {{ u_form|crispy }}
     </fieldset>
     <div class="form-group">
-      <button name="update-profile" class="btn btn-outline-info" type="submit">Update</button>
+      <button name="update-profile" class="btn btn-outline-info" type="submit">Обновить</button>
     </div>
     <fieldset class="form-group">
-      <legend class="border-bottom mb-4">Characters</legend>
+      <legend class="border-bottom mb-4">Персонажи</legend>
       {% for character in characters %}
         <div class="media content-section">
           <img class="rounded-circle article-img" src="..{{ character.image.url }}">
           <div class="media-body">
             <p class="article-content">{{ character.name }}</p>
-            <button type="button" class="btn btn-outline-info" onclick="editCharacter({{character.id}})">Edit</button>
-            <button type="button" class="btn btn-outline-info" onclick="deleteCharacter({{character.id}})">Delete</button>
+            <button type="button" class="btn btn-outline-info" onclick="editCharacter({{character.id}})">Изменить</button>
+            <button type="button" class="btn btn-outline-info" onclick="deleteCharacter({{character.id}})">Удалить</button>
           </div>
         </div>
       {% endfor %}
     </fieldset>
     <div class="form-group">
-      <button name="add-character" class="btn btn-outline-info" type="submit">Add Character</button>
+      <button name="add-character" class="btn btn-outline-info" type="submit">Добавить персонажа</button>
     </div>
   </form>
 </div>

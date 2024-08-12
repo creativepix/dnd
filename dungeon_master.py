@@ -438,7 +438,7 @@ def generate_intro(room):
 
 #prompt_class: 3 - ask; 4 - action
 def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_prompt="", throws_skills_prompt_adding="",
-                    is_fighting=False, is_fighting_end=False):
+                    is_fighting=False, is_fighting_end=False, fighting_hit=0):
     scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
     current_part = general_chat.room.scenario.scenariostate.current_part
     
@@ -447,7 +447,7 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
     elif is_fighting_end:
         insertion = "конец битвы (герои одержали победу)"
     elif is_fighting:
-        insertion = "продолжение битвы"
+        insertion = "продолжение битвы, в которой игрок наносит повреждения сопернику"
     elif prompt_class == 4:
         insertion = 'продолжение сюжета'
     else:
@@ -483,6 +483,16 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
 Ты не должен сразу прекращать сюжет в данном месте.
 Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение.
 НЕ ДЕЛАЙ очень много действий. Твое сообщение не должно быть по размеру средним.
+
+Помни, что герой наносит повреждения! Все поврежддения, которые игрок наносит существу, описывай в формате: [[повреждения]].
+Сейчас у игрока базовое количество повреждений "{fighting_hit}", но ты должен добавить к этому значению дополнительные хиты в размере до {fighting_hit} за "креативность" подхода игрока
+Пример добавления хитов при базовых {fighting_hit}:
+1) Промпт: я ударяю его кулаком
+Добавление за креативность: 0
+2) Промпт: я, размахиваясь мечом и стреляя из лука, пронзаю этого монстра
+Добавление за креативность: {int(fighting_hit * 0.5)}
+3) Промпт: я взбираюсь на спину монстра и вонзаю меч между его крыльев так, чтобы тот засвирипел
+Добавление за креативность: {int(fighting_hit * 0.85)}
 """
     elif not any(cannot_make_prompt):
         if prompt_class == 4:
@@ -511,6 +521,18 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
         prompt_last += "\n\nНЕ ЗАБЫВАЙ УЧЕСТЬ РЕЗУЛЬТАТ ПОСЛЕДНЕГО БРОСКА КУБИКА ИГРОКОМ"
     messages += [{"role": "system", "content": prompt_last}]
     txt = generate_text_by_msgs(messages=messages)
+    if is_fighting:
+        try:
+            nums = re.findall(r'\[\[(.*?)\]\]', txt)[0]
+            hit = max([int(i) for i in re.findall(r'\d+', nums)])
+            txt = txt.replace(f"[[{nums}]]", str(hit))
+        except Exception as ex:
+            print("ERROR: ", ex)
+            hit = fighting_hit
+        fight_state = current_part.scenario.scenariostate.fight_state
+        fight_state.health = max(0, fight_state.health - hit)
+        fight_state.save()
+        txt += f"\n\nИтого ты наносишь {hit} урона. Осталось: {fight_state.health}"
     #print(messages)
     return txt
 
@@ -852,7 +874,7 @@ def generate_fight_turn(general_chat):
     character_fight = None
     while character_fight is None or character_fight == characterDM or character_fight.stats.failure >= 3:
         character_fight = random.choice(characters)
-    is_character_dying = character_fight.stats.success or character_fight.stats.failure
+    is_character_dying = character_fight.stats.success or character_fight.stats.failure or character_fight.stats.armour <= 0
     hits = []
     for _ in range(fight_state.monster_class):
         hits.append(random.randint(1, fight_state.cube_class))
@@ -870,8 +892,8 @@ def generate_fight_turn(general_chat):
     messages = [{"role": "system", "content": prompt0}]
     messages += get_messages_history_prompt(general_chat, characters=characters)
     
-    prompt_last += f"""
-Помни, что ты - {fight_state.monster_info} в игре Dungeon&Dragons. Тебе необходимо свой ход в битве, а именно описать его."""
+    prompt_last = f"""
+Помни, что ты - {fight_state.monster_info} в игре Dungeon&Dragons. Тебе необходимо свой ход в битве, а именно описать его. Ты не должен кидать никаких кубиков - только генерировать описание своих действий"""
     messages += [{"role": "system", "content": prompt_last}]
     txt = generate_text_by_msgs(messages=messages)
     
@@ -880,17 +902,39 @@ def generate_fight_turn(general_chat):
 Его уровень: {fight_state.monster_class}
 Его кубики атаки: {fight_state.monster_class}к{fight_state.cube_class}
 Его значение атаки: {'+'.join(map(str, hits))}={hit}
-
+Он наносит {hit} урона персонажу {character_fight.name}, у которого остается {max(0, character_fight.stats.armour - hit)} здоровья
+{"" if character_fight.stats.armour > 0 else "Так как у персонажа уже было 0 здоровья, то он получает проваленный спасбросок"}
 """
+    last_adding = ""
     if is_character_dying:
-        adding += "Помираемому персонажу нанесли урон - этот персонаж получает проваленный спасбросок от смерти\n\n"
+        last_adding += "Помираемому персонажу нанесли урон - этот персонаж получает проваленный спасбросок от смерти\n\n"
         character_fight.stats.failure += 1
     else:
-        character_fight.stats.armour -= hit
+        character_fight.stats.armour = max(0, character_fight.stats.armour - hit)
         if character_fight.stats.armour <= 0:
-            adding += "Персонажу нанесли критический для здоровья урон - теперь он находится на гране смерти и стабилизируется\n\n"
+            last_adding += "Персонажу нанесли критический для здоровья урон - теперь он находится на гране смерти и стабилизируется\n\n"
             character_fight.stats.armour = 0
     if character_fight.stats.failure >= 3:
-        adding += "Персонаж помирает: у него 3 проваленных спасброска от смерти\n\n"
+        last_adding += "Персонаж помирает: у него 3 проваленных спасброска от смерти\n\n"
     character_fight.stats.save()
-    return adding + txt
+    return adding + txt + last_adding
+
+def generate_failed_battle(general_chat):
+    characters = general_chat.room.characters.all()
+    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Герои приняли бой с кем-то. Во время этого боя все игроки погибли и партия закончилась. Тебе необходимо будет сгенерировать конец сюжета.
+{get_characters_info_prompt(characters)}\n
+
+Название существа/существ/соперников: {fight_state.monster_info}
+"""
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat, characters=characters)
+
+    prompt_last = f"""
+Ты - Dungeon Master в игре Dungeon&Dragons. Герои приняли бой с {fight_state.monster_info}. Во время этого боя все игроки погибли и партия закончилась. Тебе необходимо будет сгенерировать конец сюжета."""
+    messages += [{"role": "system", "content": prompt_last}]
+    txt = generate_text_by_msgs(messages=messages)
+    return txt
+
+@sync_to_async
+def sync_generate_failed_battle(*args, **kwargs):
+    return generate_failed_battle(*args, **kwargs)
