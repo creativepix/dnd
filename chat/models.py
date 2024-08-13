@@ -40,6 +40,8 @@ class Message(models.Model):
     date_added = models.DateTimeField(auto_now_add=True)
     content = models.CharField(max_length=2048)
     short_content = models.CharField(max_length=512, default="")
+    is_fighting = models.BooleanField(default=False)
+    image = models.ImageField(default='', upload_to='message_images')
 
     class Meta:
         ordering = ('date_added', )

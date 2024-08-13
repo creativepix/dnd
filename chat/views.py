@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from secret_data import OPENAI_API_KEY
 
 import json
 from .forms import RoomForm
@@ -72,4 +73,5 @@ def dnd_room(request, room_name):
         'characterDM': characterDM,
         'title': room_name,
         'is_blocked_by_fighting': is_blocked_by_fighting,
+        'OPENAI_API_KEY': OPENAI_API_KEY,
     })

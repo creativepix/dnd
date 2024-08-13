@@ -4,12 +4,12 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 {% endblock head_content %}
 {% block content %}
-<div class="content-section">
+<div class="content-section chat-content-section">
 
   <div class="container-fluid vh-100">
     <div class="row h-100">
       <!-- User List Sidebar -->
-      <div class="col-12 col-md-3 col-lg-2 bg-light border-end d-flex flex-column p-3">
+      <div class="col-12 col-md-3 col-lg-3 bg-light border-end d-flex flex-column">
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h5 class="mb-0">Чаты</h5>
         </div>
@@ -45,7 +45,7 @@
       </div>
 
       <!-- Chat Area -->
-      <div class="col-12 col-md-9 col-lg-10 d-flex flex-column h-100">
+      <div class="col-12 col-md-9 col-lg-8 d-flex flex-column h-100">
         <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
           <div class="d-flex align-items-center">
             <img style="max-height:50px;max-width:50px" src="{{chats_data.0.characters.0.image.url}}"
@@ -58,19 +58,12 @@
         <div class="chat-messages p-3 flex-grow-1 overflow-auto">
           {% for message in chats_data.0.messages %}
           <div class="message mb-3 {% if character == message.character %}text-end{%endif%}">
-            {% if character == message.character %}
             <div class="d-inline-block bg-primary bg-light p-2 rounded">
-              <small>{{message.content}}</small>
-            </div>
-            <img src="{{message.character.image.url}}" class="rounded-circle ms-2"
-              style="max-width:40px;max-height:40px">
-            {%else%}
             <img src="{{message.character.image.url}}" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">
-            <div class="d-inline-block bg-primary bg-light p-2 rounded">
-              <small style="white-space: pre-wrap;">{{message.content}}</small>
-            </div>
-            {%endif%}
+            <br>
+            <small style="white-space: pre-wrap; word-break: break-word; ">{{message.content}}</small>
             <small class="text-muted d-block">{{message.date_added|time:'H:i:s'}}</small>
+            </div>
           </div>
           {% endfor %}
         </div>
@@ -78,6 +71,9 @@
         <!-- Message Input -->
         <div class="p-3 border-top">
           <div class="input-group">
+            <button id="recordButton" class="inactive" onclick="transcribe.toggleRecording()">
+              <i class="fas fa-microphone"></i>
+            </button>
             <textarea id="messageInput" class="form-control" placeholder={% if is_blocked_by_fighting %}"Битва идет..." disabled{% else %}"Напишите сообщение..."{% endif %} rows="1"></textarea>
             <button class="btn btn-primary send-message-btn" {% if is_blocked_by_fighting %}disabled{% endif %}>Отправить</button>
           </div>
@@ -111,6 +107,7 @@
     var characterId = {{ character.id }};
     var chatIds = [{%for chat_data in chats_data%}{%if character in chat_data.characters%}{{chat_data.chat.id}},{%endif%}{%endfor%}];
     var isBlockedByFighting = '{{is_blocked_by_fighting}}' == 'True';
+    var isDead = '{{character.stats.failure}}' >= 3;
     var chatIdsDM = [{%for chat_data in chats_data%}{%if characterDM in chat_data.characters %}{{chat_data.chat.id}},{%endif%}{%endfor%}];
     var allMessagesData = {
     {%for chat_data in chats_data%}
@@ -142,20 +139,17 @@
 
     function addMessage(data){
       var html = "";
-      if (characterId == data.character_id) {
+      if (data.character_id == characterId){
         html += '<div class="message mb-3 text-end">';
-        html += '  <div class="d-inline-block bg-light p-2 rounded">';
-        html += '      <small style="white-space: pre-wrap;">' + data.content + '</small>';
-        html += '  </div>';
-        html += '  <img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
-      } else {
+      }else{
         html += '<div class="message mb-3">';
-        html += '  <img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
-        html += '  <div class="d-inline-block bg-light p-2 rounded">';
-        html += '      <small style="white-space: pre-wrap;">' + data.content + '</small>';
-        html += '  </div>';
       }
-      html += '  <small class="text-muted d-block">' + data.date + '</small>';
+      html += '<div class="d-inline-block bg-primary bg-light p-2 rounded">';
+      html += '<img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
+      html += '<br>';
+      html += '<small style="white-space: pre-wrap; word-break: break-word;">' + data.content + '</small>';
+      html += '<small class="text-muted d-block">' + data.date + '</small>';
+      html += '</div>';
       html += '</div>';
 
       chatMessages[0].innerHTML += html;
@@ -168,13 +162,18 @@
       }else if (isBlockedByFighting){
         status = 2;
       }
+      if (isDead && !status && currentChatId == generalChatId){
+        status = !status;
+      }
       sendBtn.prop("disabled", status != 0);
       messageInput.prop("disabled", status != 0);
-      if (status == 1){
+      if (isDead && currentChatId == generalChatId){
+        messageInput.attr("placeholder", "Вы мерты :(");
+      }else if (status == 1){
         messageInput.attr("placeholder", "Мастер думает...");
       }else if (status == 2){
         messageInput.attr("placeholder", "Битва идет...");
-      }else{
+      }else {
         messageInput.attr("placeholder", "Напишите сообщение...");
       }
     }
@@ -203,6 +202,9 @@
         updateChatBlockStatus();
       } else if(data.type == "update_is_blocked_by_fighting_status"){
         isBlockedByFighting = data.status;
+        updateChatBlockStatus();
+      } else if(data.type == "update_is_dead_status"){
+        isDead = data.status;
         updateChatBlockStatus();
       }
       else {
@@ -271,6 +273,58 @@
       $("#btn-redirect-chat-" + chatId).on("click", redirectChat(chatId));
     }
 
+    updateChatBlockStatus();
+
+    function sendToOpenAI(text) {
+      return "a";
+    }
+    
+    var transcribe = {
+      hres : null,
+      htog : null,
+      sr : null,
+      listening : false,
+    
+      init : () => {
+        transcribe.hres = textarea;
+        transcribe.htog = document.getElementById("recordButton");
+    
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        transcribe.sr = new SR();
+        transcribe.sr.lang = "ru-RU";
+        transcribe.sr.continuous = true;
+        transcribe.sr.interimResults = false;
+    
+        transcribe.sr.onresult = e => {
+          let said = e.results[e.results.length-1][0].transcript.trim();
+          said = said.charAt(0).toUpperCase() + said.slice(1) + ".";
+          let processed = sendToOpenAI(said);
+          textarea.value += processed + " ";//TODO: check correct working
+        };
+    
+        transcribe.sr.onerror = e => {
+          console.error(e);
+          transcribe.htog.classList.remove("active");
+          transcribe.htog.classList.add("inactive");
+          alert("Убедитесь, что ваш микрофон включен и сайту выданы соответствующие права");
+        };
+      },
+    
+      toggleRecording : () => {
+        if (transcribe.listening) {
+          transcribe.sr.stop();
+          transcribe.htog.classList.remove("active");
+          transcribe.htog.classList.add("inactive");
+        } else {
+          transcribe.sr.start();
+          transcribe.htog.classList.remove("inactive");
+          transcribe.htog.classList.add("active");
+        }
+        transcribe.listening = !transcribe.listening;
+      }
+    };
+    
+    window.addEventListener("load", transcribe.init);
 
   </script>
   {% endblock scripts %}

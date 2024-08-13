@@ -19,6 +19,8 @@ class Migration(migrations.Migration):
                 ('date_added', models.DateTimeField(auto_now_add=True)),
                 ('content', models.CharField(max_length=2048)),
                 ('short_content', models.CharField(max_length=512, default="")),
+                ('is_fighting', models.BooleanField(default=False)),
+                ('image', models.ImageField(default='', upload_to='message_images')),
             ],
             options={
                 'ordering': ('date_added',),

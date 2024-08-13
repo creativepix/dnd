@@ -514,27 +514,27 @@ footer ul li {
 .d-and-d-character-sheet .d-and-d-equipment-indent:first-line {
     text-indent: 200px
 }
-
 .d-and-d-character-sheet .d-and-d-image {
-    height: 438px;
     width: 100%;
+    padding-top: 100%;
+    position: relative;
     cursor: pointer;
     background-size: contain;
     background-repeat: no-repeat;
-    background-position: 50%
+    background-position: center;
+    border-style: solid;
+    border-color: black;
+    border-radius: 50%;
+    overflow: hidden;
 }
+
 
 .d-and-d-character-sheet .d-and-d-image :hover {
     opacity: .7
 }
 
 .d-and-d-character-sheet .d-and-d-image.faction {
-    height: 340px;
-    border-radius: 50%;
-    border: 3px solid #000;
-    background-color: #fff;
-    margin: -10px -15px;
-    width: calc(100% + 30px)
+    
 }
 
 .d-and-d-character-sheet .border-right {

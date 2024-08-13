@@ -162,3 +162,5 @@ cython_debug/
 media/
 secret_data.py
 tokens_used
+cert.pem
+key.pem

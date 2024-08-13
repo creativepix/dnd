@@ -342,6 +342,11 @@ textarea#messageInput {
 }
 
 /* Mobile-specific adjustments */
+@media (max-width: 766px) {
+  .chat-content-section{
+    min-height:132vh;
+  }
+}
 @media (max-width: 576px) {
   .col-md-3, .col-lg-2 {
       display: none; /* Hide the sidebar on small screens */
@@ -363,4 +368,41 @@ textarea#messageInput {
   .message.text-end {
       margin-right: 0;
   }
+}
+
+
+/*Record button*/
+#recordButton {
+  background-color: gray;
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease;
+}
+
+#recordButton.active {
+  background-color: lightgreen;
+}
+
+#recordButton.active {
+  background-color: green;
+}
+
+#recordButton.inactive {
+  background-color: #0d6efd;
+}
+
+#recordButton.inactive:hover {
+  background-color: #0b5ed7;
+}
+
+#recordButton i {
+  pointer-events: none;
 }
