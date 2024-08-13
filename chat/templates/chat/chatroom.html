@@ -92,14 +92,17 @@
     };
     const textarea = document.getElementById('messageInput');
 
-    textarea.addEventListener('input', function () {
-      this.style.height = 'auto';
-      this.style.height = (this.scrollHeight) + 'px';
-    });
+    function updateTextAreaSize(){
+      textarea.style.height = 'auto';
+      textarea.style.height = (textarea.scrollHeight) + 'px';
+    }
+
+    textarea.addEventListener('input', function () {updateTextAreaSize()});
     
     const chatMessages = $(".chat-messages");
     const messageInput = $("#messageInput");
     const sendBtn = $(".send-message-btn");
+    var recordBtn = $("#recordButton");
 
     var generalChatId = {{ chats_data.0.chat.id }};
     var friendsChatId = {{ chats_data.1.chat.id }};
@@ -165,6 +168,10 @@
       if (isDead && !status && currentChatId == generalChatId){
         status = !status;
       }
+      if (transcribe.listening){
+        transcribe.toggleRecording();
+      }
+      recordBtn.prop("disabled", status != 0);
       sendBtn.prop("disabled", status != 0);
       messageInput.prop("disabled", status != 0);
       if (isDead && currentChatId == generalChatId){
@@ -275,9 +282,23 @@
 
     updateChatBlockStatus();
 
-    function sendToOpenAI(text) {
-      return "a";
-    }
+    async function sendToOpenAI(text) {
+      const url = '/api/get_transcript';
+
+      const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({
+              text: text,
+          })
+      });
+
+      const data = await response.json();
+      return data.text;
+  }
     
     var transcribe = {
       hres : null,
@@ -295,11 +316,13 @@
         transcribe.sr.continuous = true;
         transcribe.sr.interimResults = false;
     
-        transcribe.sr.onresult = e => {
+        transcribe.sr.onresult = async e => {
           let said = e.results[e.results.length-1][0].transcript.trim();
           said = said.charAt(0).toUpperCase() + said.slice(1) + ".";
-          let processed = sendToOpenAI(said);
+          console.log(said);
+          let processed = await sendToOpenAI(said);
           textarea.value += processed + " ";//TODO: check correct working
+          updateTextAreaSize();
         };
     
         transcribe.sr.onerror = e => {

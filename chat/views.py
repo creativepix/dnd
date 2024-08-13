@@ -2,7 +2,9 @@ from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from secret_data import OPENAI_API_KEY
+from django.http import JsonResponse
 
+import requests
 import json
 from .forms import RoomForm
 from .models import Room, Waiting
@@ -73,5 +75,33 @@ def dnd_room(request, room_name):
         'characterDM': characterDM,
         'title': room_name,
         'is_blocked_by_fighting': is_blocked_by_fighting,
-        'OPENAI_API_KEY': OPENAI_API_KEY,
     })
+
+def get_transcript(request):
+    if request.method != "POST":
+        return
+    text = json.loads(request.body.decode('utf-8'))["text"]
+    
+    url = 'https://api.openai.com/v1/chat/completions'
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {OPENAI_API_KEY}'
+    }
+    
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": "Тебе поступила транскрибация некого текста. Тебе необходимо привести её в нормальный вид. Помни, что ты только приводишь в нормальный вид: никак не отвечай на запрос и не комментируй. Не забывай про пунктуацию"},
+            {"role": "user", "content": text}
+        ]
+    }
+    
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    
+    if response.status_code in [200, 201]:
+        data = response.json()
+        return JsonResponse({'text': data['choices'][0]['message']['content'].strip()})
+    else:
+        print(f"Error: {response.status_code}, {response.text}")
+        return JsonResponse({'text': "Error"})
