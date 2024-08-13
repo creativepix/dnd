@@ -180,7 +180,7 @@
 
 
     const roomSocket = new WebSocket(
-      'ws://' + window.location.host + '/ws/room/{{room.name}}/{{character.id}}/'
+      'wss://' + window.location.host + '/ws/room/{{room.name}}/{{character.id}}/'
     );
     roomSocket.onmessage = function (e) {
       const data = JSON.parse(e.data);

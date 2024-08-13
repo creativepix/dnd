@@ -51,7 +51,7 @@
         );
         
         const waitingSocket = new WebSocket(
-          'ws://' + window.location.host + '/ws/waiting/' + roomName + '/' + {{ character.id }} + '/'
+          'wss://' + window.location.host + '/ws/waiting/' + roomName + '/' + {{ character.id }} + '/'
         );
         waitingSocket.onopen = function (e) {
           html  = '<div class="my-checkbox-ready checkbox-wrapper-8 checkbox-waiting-init-size text-center">';
