@@ -12,28 +12,6 @@ var initiativeInput = $(".initiative-input")[0];
 var levelInput = $(".level-input")[0];
 var imgInput = $('#d-and-d-image-factionImg');
 
-var classes = {
-    "Бард": [8],
-    "Варвар": [12],
-    "Плут": [8],
-    "Друид": [8]
-}
-
-var races = {
-    "Эльф": [],
-    "Человек": [],
-    "Гном": [],
-    "Дварф": []
-}
-
-for (const customSubclass in classes){
-    customClass.innerHTML += '<option value="' + customSubclass + '">' + customSubclass + '</option>';
-}
-
-for (const customSubrace in races){
-    customRace.innerHTML += '<option value="' + customSubrace + '">' + customSubrace + '</option>';
-}
-
 var mainstat2skills = [
     [3],
     [0, 15, 16],
@@ -58,8 +36,8 @@ var curData = {};
 
 function updateData(){
     curData["name"] = characterName.value;
-    curData["custom_class"] = $(customClass).find('option:selected')[0].innerHTML;
-    curData["custom_race"] = $(customRace).find('option:selected')[0].innerHTML;
+    curData["custom_class"] = $(customClass).val();
+    curData["custom_race"] = $(customRace).val();
     curData["level"] = parseInt(levelInput.value);
     var stats = ["stre", "dex", "cos", "inte", "wis", "cha"]
     i = 0;
@@ -179,13 +157,13 @@ function mainStatChanged(ind, stat2change){
         for (const skillInd of mainstat2skills[ind]){
             $(skills[skillInd]).find("input")[0].value = newval + parseInt(proficiencyInput.value);
         }
-        var classInd = $(customClass).find('option:selected')[0].innerHTML;
+        $(savingThrows[ind]).find("input").val(newval);
         var level = parseInt(levelInput.value);
         if (ind == 1){
             initiativeInput.value = newval + 1;
         }
         if (ind == 2){
-            armourInput.value = newval + classes[classInd][0] * level;
+            armourInput.value = newval + 8 * level;
         }
     }
     return out;
@@ -204,8 +182,7 @@ function levelChanged(e){
     var inp = $(this);
     level = parseInt(inp.val());
     var constitution = parseInt($(mainStats[2]).find("input")[0].value);
-    var classInd = $(customClass).find('option:selected')[0].innerHTML;
-    armourInput.value = constitution + classes[classInd][0] * level;
+    armourInput.value = constitution + 8 * level;
 }
 $(levelInput).on('input', levelChanged);
 

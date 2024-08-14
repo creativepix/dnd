@@ -95,7 +95,7 @@ def profile(request):
 {constitution}
 """
             imgprompt = generate_text(prompt, system_prompt)
-            img_b64 = generate_image(imgprompt)
+            img_b64 = generate_image(imgprompt, res="256x256")
             return HttpResponse(json.dumps({"img_b64": img_b64}), content_type="application/json")
         elif "create" in request.POST:
             all_data = json.loads(request.POST["all_data"])

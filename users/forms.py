@@ -21,44 +21,50 @@ class StatsCreateFormValues:
         self.custom_class = "Бард"
         self.custom_race = "Человек"
         self.level = 1
-        self.stre = -5
-        self.dex = -5
-        self.cos = -5
-        self.inte = -5
-        self.wis = -5
-        self.cha = -5
-        self.stre_down = 1
-        self.dex_down = 1
-        self.cos_down = 1
-        self.inte_down = 1
-        self.wis_down = 1
-        self.cha_down = 1
+        
+        self.stre = 2
+        self.dex = 2
+        self.cos = 2
+        self.inte = 2
+        self.wis = 2
+        self.cha = 2
+        
+        self.stre_down = 15
+        self.dex_down = 15
+        self.cos_down = 15
+        self.inte_down = 15
+        self.wis_down = 15
+        self.cha_down = 15
+        
         self.proficiency_bonus = 1
         self.passive_perception = 5
-        self.stre_saving = 0
-        self.dex_saving = 0
-        self.cos_saving = 0
-        self.inte_saving = 0
-        self.wis_saving = 0
-        self.cha_saving = 0
-        self.acrobatics = 0
-        self.animals = -4
-        self.arcana = -4
-        self.athletics = -4
-        self.deception = -4
-        self.history = -4
-        self.insight = -4
-        self.intimidation = -4
-        self.investigation = -4
-        self.medicine = -4
-        self.nature = -4
-        self.perception = -4
-        self.performance = -4
-        self.persuasion = -4
-        self.religion = -4
-        self.sleightofhand = -4
-        self.stealth = -4
-        self.survival = -4
+        
+        self.stre_saving = 2
+        self.dex_saving = 2
+        self.cos_saving = 2
+        self.inte_saving = 2
+        self.wis_saving = 2
+        self.cha_saving = 2
+        
+        self.acrobatics = 3
+        self.animals = 3
+        self.arcana = 3
+        self.athletics = 3
+        self.deception = 3
+        self.history = 3
+        self.insight = 3
+        self.intimidation = 3
+        self.investigation = 3
+        self.medicine = 3
+        self.nature = 3
+        self.perception = 3
+        self.performance = 3
+        self.persuasion = 3
+        self.religion = 3
+        self.sleightofhand = 3
+        self.stealth = 3
+        self.survival = 3
+        
         self.proficiencies = ""
         self.current_hit = 10
         self.attacks_spellcasting = ""
@@ -70,8 +76,8 @@ class StatsCreateFormValues:
         self.features_traits = ""
         self.success = 0
         self.failure = 0
-        self.armour = 5
-        self.initiative = -4
+        self.armour = 50
+        self.initiative = 3
         self.speed = 30
 
 

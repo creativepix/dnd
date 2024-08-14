@@ -2,7 +2,7 @@ from users.models import User, Character, Stats
 from chat.models import ScenarioFightState
 from secret_data import DM_PARAMS
 import django
-from openai_api import generate_text, generate_text_by_msgs
+from openai_api import generate_text, generate_text_by_msgs, generate_image_with_url
 import re
 from asgiref.sync import sync_to_async
 import math
@@ -813,7 +813,7 @@ def is_starting_fight(general_chat):
         return 0
 
 def get_mean_rand_stat(stat_vals):
-    return int(max(0, sum(stat_vals) + random.randint(-int(sum(stat_vals) / 3), int(sum(stat_vals) / 3))) / len(stat_vals))
+    return int(max(0, sum(stat_vals) + random.randint(0, int(sum(stat_vals) / 2))) / len(stat_vals))
 
 def start_fight(general_chat):
     characters = general_chat.room.characters.all()
@@ -838,7 +838,7 @@ def start_fight(general_chat):
     
     initiative_order = [(pair[1] if pair[1] != len (characters) else -1, pair[0]) for pair in inititatives] # if it is monster than -1
     
-    cube_class = random.choices([4, 6, 8, 10, 12, 16, 20], weights=[10, 20, 35, 50, 35, 20, 10])[0]
+    cube_class = random.choices([4, 6, 8, 10, 12, 16, 20], weights=[5, 10, 35, 50, 65, 35, 20])[0]
     
     
     prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Герои приняли бой с кем-то. Тебе необходимо будет выяснить, с кем именно они борются
@@ -960,3 +960,34 @@ def generate_failed_battle(general_chat):
 @sync_to_async
 def sync_generate_failed_battle(*args, **kwargs):
     return generate_failed_battle(*args, **kwargs)
+
+def generate_image_scenario(general_chat, prefolder="", outsize=None):
+    characters = general_chat.room.characters.all()
+    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Действия героев следующей завязке сюжета. Твооей задачей будет сгенерировать промпт, описывающий последние действия. Этот промпт в дальнейшем будет использоваться для генерации изображений, поэтому ты имеешь право удалять ту информацию, которая не сказывается на картине сюжета.
+Герои:
+{get_characters_info_prompt(characters)}
+"""
+    messages = [{"role": "system", "content": prompt0}]
+    messages += get_messages_history_prompt(general_chat)
+    
+    scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
+    current_part = general_chat.room.scenario.scenariostate.current_part
+    current_part_ind = scenario_parts.index(current_part)
+    last_prompt = f"""Действия героев следующей завязке сюжета. Твооей задачей является генерация промпта, описывающего последние действия. Этот промпт в дальнейшем будет использоваться для генерации изображений, поэтому ты имеешь право удалять ту информацию, которая не сказывается на картине сюжета.
+Часть сюжета, к которой герои перешли:
+{current_part.content}
+
+Герои:
+{get_characters_info_prompt(characters)}
+
+Помни, что ты лишь генерируешь промпт для генерации изображения - ты не должен как-то его комментировать или отвечать на вопросы игроков. Также он должен быть кратким.
+"""
+    messages += [{"role": "system", "content": last_prompt}]
+    
+    txt = generate_text_by_msgs(messages=messages)
+    print("image prompt:", txt)
+    return generate_image_with_url(txt, prefolder=prefolder, outsize=outsize)
+
+@sync_to_async
+def sync_generate_image_scenario(*args, **kwargs):
+    return generate_image_scenario(*args, **kwargs)

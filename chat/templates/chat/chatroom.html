@@ -49,9 +49,9 @@
         <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
           <div class="d-flex align-items-center">
             <img style="max-height:50px;max-width:50px" src="{{chats_data.0.characters.0.image.url}}"
-              class="rounded-circle me-3" alt="User 1">
+              class="rounded-circle me-3" alt="User 1" id="current-chat-image">
             <div>
-              <h6 class="mb-0">Общий</h6>
+              <h6 class="mb-0" id="current-chat-header">Общий</h6>
             </div>
           </div>
         </div>
@@ -62,6 +62,9 @@
             <img src="{{message.character.image.url}}" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">
             <br>
             <small style="white-space: pre-wrap; word-break: break-word; ">{{message.content}}</small>
+            {% if message.image %}
+            <br><img src="{{message.image.url}}" class="ms-2" style="max-width:50vw;max-height:50vw">
+            {% endif %}
             <small class="text-muted d-block">{{message.date_added|time:'H:i:s'}}</small>
             </div>
           </div>
@@ -112,6 +115,31 @@
     var isBlockedByFighting = '{{is_blocked_by_fighting}}' == 'True';
     var isDead = '{{character.stats.failure}}' >= 3;
     var chatIdsDM = [{%for chat_data in chats_data%}{%if characterDM in chat_data.characters %}{{chat_data.chat.id}},{%endif%}{%endfor%}];
+    var chatId2Image = {
+      {% for chat_data in chats_data %}
+      {% if character in chat_data.characters %}
+      {{chat_data.chat.id}}: '{% if character == chat_data.characters.0 %}{{ chat_data.characters.1.image.url }}{% else %}{{ chat_data.characters.0.image.url }}{% endif %}',
+      {% endif %}
+      {% endfor %}
+    };
+    var chatId2Header = {
+      {% for chat_data in chats_data %}
+      {% if character in chat_data.characters %}
+        {{chat_data.chat.id}}: 
+        {% if chat_data.chat.is_general %}
+        'Общий'
+        {% elif chat_data.chat.is_friends %}
+        'Друзья'
+        {% else %}
+          {% if character == chat_data.characters.0 %}
+          '{{ chat_data.characters.1.name }}'
+          {% else %}
+          '{{ chat_data.characters.0.name }}'
+          {% endif %}
+        {% endif %},
+      {% endif %}
+      {% endfor %}
+    };
     var allMessagesData = {
     {%for chat_data in chats_data%}
     {{chat_data.chat.id}}: 
@@ -151,6 +179,9 @@
       html += '<img src="' + data.image + '" class="rounded-circle ms-2" style="max-width:40px;max-height:40px">';
       html += '<br>';
       html += '<small style="white-space: pre-wrap; word-break: break-word;">' + data.content + '</small>';
+      if (data.content_image){
+        html += '<br><img src="' + data.content_image + '" class="ms-2" style="max-width:50vw;max-height:50vw">';
+      }
       html += '<small class="text-muted d-block">' + data.date + '</small>';
       html += '</div>';
       html += '</div>';
@@ -201,6 +232,7 @@
         }
         allMessagesData[data.chat_id].push({content: data.content,
           image: data.image,
+          content_image: data.content_image,
           character_id: data.character_id,
           date: data.date,
         });
@@ -262,6 +294,8 @@
 
     function redirectChat(chatId){
       function out(){
+        $("#current-chat-image").attr("src", chatId2Image[chatId]);
+        $("#current-chat-header")[0].innerHTML = chatId2Header[chatId];
         $("#btn-redirect-chat-" + currentChatId)[0].classList.remove("active");
         $("#btn-redirect-chat-" + chatId)[0].classList.add("active");
         currentChatId = chatId;
@@ -279,8 +313,6 @@
       const chatId = chatIds[ind];
       $("#btn-redirect-chat-" + chatId).on("click", redirectChat(chatId));
     }
-
-    updateChatBlockStatus();
 
     async function sendToOpenAI(text) {
       const url = '/api/get_transcript';
@@ -321,7 +353,7 @@
           said = said.charAt(0).toUpperCase() + said.slice(1) + ".";
           console.log(said);
           let processed = await sendToOpenAI(said);
-          textarea.value += processed + " ";//TODO: check correct working
+          textarea.value += processed + " ";
           updateTextAreaSize();
         };
     
@@ -348,6 +380,7 @@
     };
     
     window.addEventListener("load", transcribe.init);
+    updateChatBlockStatus();
 
   </script>
   {% endblock scripts %}

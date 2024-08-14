@@ -11,6 +11,8 @@ from .models import Room, Waiting
 from users.models import Character
 from dungeon_master import characterDM
 
+room_chars_available = "_-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 @login_required()
 def chat_home(request):
     form = RoomForm(request.POST or None)
@@ -19,7 +21,7 @@ def chat_home(request):
         character = Character.objects.get(id=request.POST["char_id"])
         request.character = character
         room_name = form.cleaned_data['room_name']
-        if all([el in "qwertyuiopasdfghjklzxcvbnm_" for el in room_name]):
+        if all([el in room_chars_available for el in room_name]):
             room = Room.objects.filter(name=room_name)[:]
             if len(room) == 0:
                 room = Room(name=room_name, is_waiting=True)
@@ -43,7 +45,7 @@ def chat_home(request):
             else:
                 messages.warning(request, "Название комнаты уже используется")
         else:
-            messages.warning(request, "Название комнаты должно содержать только символы: abcdefghijklmnopqrstuvwxyz_")
+            messages.warning(request, f"Название комнаты должно содержать только символы: {room_chars_available}")
 
     return render(request, 'chat/index.html', 
                   {'form': form, 'characters': request.user.character_set.all()})

@@ -14,7 +14,7 @@ from dungeon_master import create_scenario_parts, get_character_info, generate_a
     check_need_spells, check_need_equipment, classify_throws_skills, get_exact_throws, get_exact_skills, \
     change_equipment, what_equipment_changed, check_next_part, check_equipment, check_spells, generate_intro, \
     sync_check_next_part, need_change_scenario, change_scenario, start_fight, generate_fight_turn, is_starting_fight, \
-    generate_failed_battle, sync_generate_failed_battle
+    generate_failed_battle, sync_generate_failed_battle, sync_generate_image_scenario
 import random
 
 WAIT_SECONDS = 0.5
@@ -56,6 +56,10 @@ def get_room(room_name):
 @sync_to_async
 def get_room_characters(room):
     return list(room.characters.all())
+
+@sync_to_async
+def get_chat_characters(chat):
+    return list(chat.characters.all())
 
 def get_item(dictionary, key):
     if key in dictionary:
@@ -305,16 +309,19 @@ class RoomConsumer(AsyncWebsocketConsumer):
             if not any(text_data_json["message"]):
                 return
             chat = await get_chat(text_data_json["chat_id"])
+            chat_characters = await get_chat_characters(chat)
+            need_answer = not chat.is_friends and characterDM in chat_characters
             
-            await self.set_chat_block_status(chat, True)
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'change_chat_block_status',
-                    'status': True,
-                    'chat_id': chat.id
-                }
-            )
+            if need_answer:
+                await self.set_chat_block_status(chat, True)
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'change_chat_block_status',
+                        'status': True,
+                        'chat_id': chat.id
+                    }
+                )
             
             message_text_data = await self.createMessage(chat, text_data_json["message"])
             await self.channel_layer.group_send(
@@ -324,8 +331,9 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
-            loop = asyncio.get_event_loop()
-            loop.create_task(self.generate_answer(text_data_json["message"], chat))
+            if need_answer:
+                loop = asyncio.get_event_loop()
+                loop.create_task(self.generate_answer(text_data_json["message"], chat))
         elif text_data_json["type"] == "change_chat_block_status":
             chat = await get_chat(text_data_json["chat_id"])
             await self.set_chat_block_status(chat, text_data_json["status"])
@@ -364,7 +372,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
             self.general_chat = chat
         characters = await get_room_characters(self.room)
         
-        message_text_data, message_text_data2 = None, None
+        message_text_data, message_img_data, message_text_data2, imgurl = None, "", None, ""
         if not chat.is_general:
             #TODO
             msg = await sync_generate_answer(characters, self.general_chat, chat, prompt_class=3)
@@ -411,6 +419,9 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     )
                     return
             if is_fighting_start:
+                imgurl = await sync_generate_image_scenario(self.general_chat, prefolder="message_images")
+                message_text_data = await self.set_message_image(message_text_data, imgurl)
+                
                 initiative_order = chat.room.scenario.scenariostate.fight_state.get_initiative_order()
                 if initiative_order[0] == -1:
                     msg = await self.generate_fight_monster_turn(chat)
@@ -419,6 +430,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     message_text_data2 = await self.createMessage(self.general_chat, msg, short_content=short_msg, character=characterDM)
             elif await sync_check_next_part(self.general_chat):
                 await self.go_next_part()
+                imgurl = await sync_generate_image_scenario(self.general_chat, prefolder="message_images")
+                message_text_data = await self.set_message_image(message_text_data, imgurl)
         else:
             message_text_data = await self.createMessage(chat, msg, short_content=short_msg, character=characterDM)
             
@@ -478,6 +491,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
         if await self.is_everyone_dead(characters):
             msg = await sync_generate_failed_battle(self.general_chat)
             message_text_data = await self.createMessage(self.general_chat, msg, character=characterDM)
+            
+            imgurl = await sync_generate_image_scenario(self.general_chat, prefolder="message_images")
+            message_text_data = await self.set_message_image(message_text_data, imgurl)
+            
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -566,6 +583,16 @@ class RoomConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({"type": "update_is_dead_status", "status": True}))
         else:
             await self.send(text_data=json.dumps({"type": "update_is_dead_status", "status": False}))
+    
+    @sync_to_async
+    def set_message_image(self, message_text_data, imgurl):
+        message_text_data = json.loads(message_text_data)
+        msg = Message.objects.get(id=message_text_data["id"])
+        msg.image = imgurl
+        msg.save()
+        message_text_data['content_image'] = msg.image.url
+        message_text_data = json.dumps(message_text_data)
+        return message_text_data
             
     @sync_to_async
     def is_end_fight(self, chat):
@@ -775,19 +802,21 @@ class RoomConsumer(AsyncWebsocketConsumer):
         chat.save()
     
     @sync_to_async
-    def createMessage(self, chat, content, short_content="", character=None):
+    def createMessage(self, chat, content, short_content="", character=None, image=""):
         if character is None:
             character = self.character
-        message = Message(chat=chat, character=character, content=content, short_content=short_content)
+        message = Message(chat=chat, character=character, content=content, short_content=short_content, image=image)
         message.save()
         message.date_added += timedelta(hours=3)
         message.save()
         text_data = json.dumps({
             'type': 'message_received',
+            'id': message.id,
             'content': message.content,
             'character_id': message.character.id,
             'character_name': message.character.name,
             'image': message.character.image.url,
+            'content_image': message.image.url if message.image else "",
             'date': message.date_added.strftime("%H:%M:%S"),
             'chat_id': message.chat.id,
         })
