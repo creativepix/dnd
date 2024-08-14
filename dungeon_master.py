@@ -12,7 +12,7 @@ MAX_CONTENT_SIZE = 4096
 MAX_PERSONAL_CONTENT_SIZE = 512
 CHANGING_SCENARIO_PARTS_N = 3
 FIGHT_MESSAGES_LAST_INFO_N = 4
-MEAN_FIGHT_ROUNDS_K = 3
+MEAN_FIGHT_ROUNDS_K = 4
 
 def extract_parts(text):
     pattern = r'\[\d+\](.*?)(?=\[\d+\]|$)'
@@ -357,7 +357,7 @@ def get_exact_skills(prompt):
         return 5
 
 def create_scenario_parts(characters):
-    prompt = """Ты - Dungeon Master в игре Dungeon&Dragons. Твоя задача придумать сценарий так, чтобы каждая его часть представляла из себя какую-то единичную активность. Каждая часть/активность должна быть описана кратко, их должно быть много (около 10)
+    prompt = """Ты - Dungeon Master в игре Dungeon&Dragons. Твоя задача придумать сценарий так, чтобы каждая его часть представляла из себя какую-то единичную активность. Каждая часть/активность должна быть описана кратко, их должно быть 2 штуки
 
 Оформляй сценарий в таком виде:
 [1]
@@ -473,7 +473,6 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
     messages = [{"role": "system", "content": prompt0}]
     messages += get_messages_history_prompt(general_chat, characters=characters)
     
-    next_part = scenario_parts[scenario_parts.index(current_part) + 1]
     prompt_last = ""
     if is_fighting_end:
         prompt_last += f"""Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо сгенерировать {insertion}.
@@ -509,10 +508,11 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
     elif not any(cannot_make_prompt):
         if prompt_class == 4:
             if current_part.is_final:
-                prompt_last += """\nНа данный момент герои находятся на финальной части сценария. Тебе необходимо подвести их к финалу/заключению, но помни, что ты их лишь подводишь! Ты не обязан ими выполнять какие-либо действия. Также не обязан сразу прекращать сюжет в данном месте - сюжет нужно прекращать, только если герои сами подошли к заключинию (а не ты их резко за ручку привел)
+                prompt_last += """\nНа данный момент герои находятся на финальной части сценария. Тебе необходимо закончить сюжет. Ты не обязан ими выполнять какие-либо действия
 Если тебе требуется говорить за какого-то стороннего персонажа, то говори и сочиняй его речь. Описывай всё окружение
 """
             else:
+                next_part = scenario_parts[scenario_parts.index(current_part) + 1]
                 prompt_last += f"""
 Ты должен учитывать, что игроки двигаются по сюжету в эту сторону:
 {next_part.content}
@@ -741,6 +741,8 @@ def change_scenario(general_chat, throws_skills_prompt_adding=""):
     
     scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
     current_part = general_chat.room.scenario.scenariostate.current_part
+    if current_part.is_final:
+        return
     current_part_ind = scenario_parts.index(current_part)
     if any(throws_skills_prompt_adding):
         messages += [{"role": "system", "content": throws_skills_prompt_adding}]
@@ -813,7 +815,7 @@ def is_starting_fight(general_chat):
         return 0
 
 def get_mean_rand_stat(stat_vals):
-    return int(max(0, sum(stat_vals) + random.randint(0, int(sum(stat_vals) / 2))) / len(stat_vals))
+    return int(max(0, sum(stat_vals) + random.randint(0, int(sum(stat_vals) / 3))) / len(stat_vals))
 
 def start_fight(general_chat):
     characters = general_chat.room.characters.all()

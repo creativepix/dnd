@@ -40,6 +40,10 @@ def get_character(character_id):
 @sync_to_async
 def get_character_stats(character):
     return character.stats
+
+@sync_to_async
+def is_end(room):
+    return room.scenario.scenariostate.current_part.is_final
     
 @sync_to_async
 def get_message(message_id):
@@ -382,6 +386,24 @@ class RoomConsumer(AsyncWebsocketConsumer):
         
         if chat.is_general:
             message_text_data = await self.createMessage(self.general_chat, msg, short_content=short_msg, character=characterDM)
+            
+            if await is_end(chat.room):
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'send_data',
+                        'data': message_text_data,
+                    }
+                )
+                await self.end_game_save()
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'send_data',
+                        'data': json.dumps({'type': "end_game"})
+                    }
+                )
+                return
         
             monster_info = await get_monsert_info(chat)
             if is_fighting and await self.is_end_fight(chat):
@@ -415,6 +437,14 @@ class RoomConsumer(AsyncWebsocketConsumer):
                         {
                             'type': 'send_data',
                             'data': message_text_data,
+                        }
+                    )
+                    await self.end_game_save()
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            'type': 'send_data',
+                            'data': json.dumps({'type': "end_game"})
                         }
                     )
                     return
@@ -638,10 +668,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def go_next_part(self):
         current_part = self.room.scenario.scenariostate.current_part
-        if current_part.is_final:
-            #TODO: end game
-            print("GAME ENDED")
-            return
+        #if current_part.is_final:
+        #    #TODO: end game
+        #    print("GAME ENDED")
+        #    return
         scenario_parts = list(self.general_chat.room.scenario.scenariopart_set.all())
         next_part = scenario_parts[scenario_parts.index(current_part) + 1]
         self.room.scenario.scenariostate.current_part = next_part
@@ -777,16 +807,22 @@ class RoomConsumer(AsyncWebsocketConsumer):
                               is_fighting=is_fighting, fighting_hit=fighting_hit,
                               is_fighting_end=is_fighting_end, dead_monster_info=dead_monster_info)
 
+
         if any(out_adding):
             msg = out_adding + msg
-        equipment_changing = what_equipment_changed(msg)
-        if equipment_changing[0] == 1:
-            cmd = " ".join(equipment_changing[1:])
-            equipment = change_equipment(equipment, cmd, self.character.info)
-            self.character.stats.equipment = equipment
-            self.character.stats.save()
+        #equipment_changing = what_equipment_changed(msg)
+        #if equipment_changing[0] == 1:
+        #    cmd = " ".join(equipment_changing[1:])
+        #    equipment = change_equipment(equipment, cmd, self.character.info)
+        #    self.character.stats.equipment = equipment
+        #    self.character.stats.save()
 
         return msg
+    
+    @sync_to_async
+    def end_game_save(self):
+        self.room.is_end = True
+        self.room.save()
     
     @sync_to_async
     def get_blocked_chat_ids(self):

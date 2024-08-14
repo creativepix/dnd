@@ -107,6 +107,7 @@
     const sendBtn = $(".send-message-btn");
     var recordBtn = $("#recordButton");
 
+    var isEnd = '{{room.is_end}}' == 'True';
     var generalChatId = {{ chats_data.0.chat.id }};
     var friendsChatId = {{ chats_data.1.chat.id }};
     var currentChatId = {{ chats_data.0.chat.id }};
@@ -191,7 +192,10 @@
 
     function updateChatBlockStatus(){
       var status = 0;
-      if (blocked_chat_ids.includes(currentChatId)){
+      if (isEnd){
+        status = 3;
+      }
+      else if (blocked_chat_ids.includes(currentChatId)){
         status = 1;
       }else if (isBlockedByFighting){
         status = 2;
@@ -205,7 +209,10 @@
       recordBtn.prop("disabled", status != 0);
       sendBtn.prop("disabled", status != 0);
       messageInput.prop("disabled", status != 0);
-      if (isDead && currentChatId == generalChatId){
+      if (isEnd){
+        messageInput.attr("placeholder", "Конец!");
+      }
+      else if (isDead && currentChatId == generalChatId){
         messageInput.attr("placeholder", "Вы мерты :(");
       }else if (status == 1){
         messageInput.attr("placeholder", "Мастер думает...");
@@ -244,6 +251,9 @@
         updateChatBlockStatus();
       } else if(data.type == "update_is_dead_status"){
         isDead = data.status;
+        updateChatBlockStatus();
+      } else if(data.type == "end_game"){
+        isEnd = true;
         updateChatBlockStatus();
       }
       else {
