@@ -18,6 +18,7 @@ from dungeon_master import create_scenario_parts, get_character_info, generate_a
 import random
 
 WAIT_SECONDS = 0.5
+WAIT_FIGHT_SECONDS = 2
 
 @sync_to_async
 def get_monsert_info(chat):
@@ -476,16 +477,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 'chat_id': chat.id
             }
         )
-
-        for txt_data in [message_text_data, message_text_data2]:
-            if txt_data is not None:
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'send_data',
-                        'data': txt_data,
-                    }
-                )
         
         if is_fighting_start:
             await self.channel_layer.group_send(
@@ -498,6 +489,19 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     }),
                 }
             )
+
+        for txt_data in [message_text_data, message_text_data2]:
+            if txt_data is not None:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'send_data',
+                        'data': txt_data,
+                    }
+                )
+                if message_text_data2 is not None:
+                    await asyncio.sleep(WAIT_FIGHT_SECONDS)
+    
         if is_fighting:
             initiative_order = await self.get_initiative_order(chat)
             await self.channel_layer.group_send(
@@ -560,7 +564,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
         await sync_print('msg', msg, event)
         if msg is not None:
             message_text_data = await self.createMessage(self.general_chat, msg, character=characterDM)
-            #TODO: await asyncio.sleep(WAIT_SECONDS)
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -585,6 +588,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                         'data': message_text_data,
                     }
                 )
+                await asyncio.sleep(WAIT_FIGHT_SECONDS)
                 # обновление порядка инициатив, так как походил монстр
                 initiative_order = await self.get_initiative_order(self.general_chat)
             await sync_print('current2 initiative', initiative_order)

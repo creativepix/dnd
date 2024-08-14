@@ -535,12 +535,11 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
     txt = generate_text_by_msgs(messages=messages)
     if is_fighting:
         try:
-            nums = re.findall(r'\[\[(.*?)\]\]', txt)[0]
-            hit = max([int(i) for i in re.findall(r'\d+', nums)])
-            txt = txt.replace(f"[[{nums}]]", str(hit))
+            hit = max([int(i) for nums in re.findall(r'\[\[(.*?)\]\]', txt) + re.findall(r'\*\*(.*?)\*\*', txt) for i in re.findall(r'\d+', nums)])
         except Exception as ex:
             print("ERROR: ", ex)
             hit = fighting_hit
+        current_part.scenario.scenariostate.refresh_from_db()
         current_part.scenario.scenariostate.fight_state.refresh_from_db()
         fight_state = current_part.scenario.scenariostate.fight_state
         fight_state.health = max(0, fight_state.health - hit)

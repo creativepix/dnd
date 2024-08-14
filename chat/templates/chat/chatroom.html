@@ -78,7 +78,7 @@
               <i class="fas fa-microphone"></i>
             </button>
             <textarea id="messageInput" class="form-control" placeholder={% if is_blocked_by_fighting %}"Битва идет..." disabled{% else %}"Напишите сообщение..."{% endif %} rows="1"></textarea>
-            <button class="btn btn-primary send-message-btn" {% if is_blocked_by_fighting %}disabled{% endif %}>Отправить</button>
+            <button class="btn btn-primary send-message-btn" {% if is_blocked_by_fighting %}disabled{% endif %}>-></button>
           </div>
         </div>
         
@@ -197,7 +197,7 @@
       }
       else if (blocked_chat_ids.includes(currentChatId)){
         status = 1;
-      }else if (isBlockedByFighting){
+      }else if (isBlockedByFighting && chatIdsDM.includes(currentChatId) && currentChatId != friendsChatId){
         status = 2;
       }
       if (isDead && !status && currentChatId == generalChatId){
