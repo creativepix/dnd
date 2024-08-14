@@ -173,8 +173,11 @@ def check_need_spells(prompt):
     prompt = "Запрос пользователя:\n" + prompt
     out = generate_text(prompt, system_prompt, model="gpt-3.5-turbo")
     try:
-        return int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        out = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
+        print("need spells", out)
+        return out
     except Exception:
+        print("ERROR. need spells 0")
         return 0
 
 def check_spells(prompt, spells):
@@ -357,7 +360,7 @@ def get_exact_skills(prompt):
         return 5
 
 def create_scenario_parts(characters):
-    prompt = """Ты - Dungeon Master в игре Dungeon&Dragons. Твоя задача придумать сценарий так, чтобы каждая его часть представляла из себя какую-то единичную активность. Каждая часть/активность должна быть описана кратко, их должно быть 2 штуки
+    prompt = """Ты - Dungeon Master в игре Dungeon&Dragons. Твоя задача придумать сценарий так, чтобы каждая его часть представляла из себя какую-то единичную активность. Каждая часть/активность должна быть описана кратко, их должно быть  много (около 10)
 
 Оформляй сценарий в таком виде:
 [1]
@@ -369,9 +372,9 @@ def create_scenario_parts(characters):
 Ты придумываешь сценарий для следующих героев:"""
     for i, character in enumerate(characters, start=1):
         prompt += f"{i}) " + character.info + "\n"
-    prompt += "Попытайся сделать так, чтобы сценарий понравился всем. Помни, что последняя часть сценария должна быть завершающей, не подразумевающей продолжение!"
+    prompt += "Попытайся сделать так, чтобы сценарий понравился всем. Помни, что последняя часть сценария должна быть завершающей, не подразумевающей продолжение (но оформляй её также, как и остальные, то есть [число], а НЕ [завершающая])!"
     txt = generate_text(prompt, model="gpt-3.5-turbo")
-    print(txt)
+    #print(txt)
     parts = extract_parts(txt)
     return parts
 
@@ -572,7 +575,7 @@ def check_next_part(general_chat):
     prompt_last += """
 Помни, что тебе необходимо понять, перешел ли сюжет к следующей части (или вообще уже её прошел/достиг)."""
     messages += [{"role": "system", "content": prompt_last}]
-    print(messages)
+    #print(messages)
     out = generate_text_by_msgs(messages=messages)
     #print(messages)
     try:
@@ -754,7 +757,6 @@ def change_scenario(general_chat, throws_skills_prompt_adding=""):
 {scenario_parts[current_part_ind + 1].content}
 """
     messages += [{"role": "system", "content": last_prompt}]
-    print(messages)
     #for i, scenario_part in enumerate(scenario_parts[current_part_ind:min(len(scenario_parts), current_part_ind+CHANGING_SCENARIO_PARTS_N+1)], start=current_part_ind+1):
     #    messages += [{"role": "user", "content": f"[{i}]\n{scenario_part.content}\n"}]
     #print(messages)
@@ -860,7 +862,7 @@ def start_fight(general_chat):
 {get_characters_info_prompt(characters)}
 """
     messages += [{"role": "system", "content": prompt_last}]
-    print(messages)
+    #print(messages)
     monster_info = generate_text_by_msgs(messages=messages)
     print("monster_info", monster_info)
     try:
