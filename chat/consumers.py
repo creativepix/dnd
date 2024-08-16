@@ -365,7 +365,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
             return
         is_fighting_end = False
         is_fighting_start = False
-        is_fighting = await self.get_is_fighting()
+        is_fighting = await self.get_is_fighting(chat)
         
         if is_fighting:
             await self.send(text_data=json.dumps({
@@ -407,7 +407,9 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 return
         
             monster_info = await get_monsert_info(chat)
-            if is_fighting and await self.is_end_fight(chat):
+            # refresh from db fight state for health in is_end_fight
+            # await sync_print("------>", is_fighting, await self.is_end_fight(self.general_chat))
+            if is_fighting and await self.is_end_fight(self.general_chat):
                 is_fighting_end = True
                 is_fighting = False
                 is_fighting_start = False
@@ -415,39 +417,14 @@ class RoomConsumer(AsyncWebsocketConsumer):
                                                          is_fighting_end=is_fighting_end, dead_monster_info=monster_info)
                 short_msg2 = await sync_make_content_shorter(msg2)
                 message_text_data2 = await self.createMessage(self.general_chat, msg2, short_content=short_msg2, character=characterDM)
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'send_data',
-                        'data': json.dumps({
-                            'type': 'update_is_blocked_by_fighting_status',
-                            'status':  False
-                        }),
-                    }
-                )
         
             is_fighting_start = (not is_fighting and chat.room.scenario.scenariostate.fight_state is not None) and not is_fighting_end
             is_fighting = (is_fighting or is_fighting_start) and not is_fighting_end
             if is_fighting:
                 # печальный конец
                 if await self.is_everyone_dead(characters):
-                    msg = await sync_generate_failed_battle(self.general_chat)
-                    message_text_data = await self.createMessage(self.general_chat, msg, character=characterDM)
-                    await self.channel_layer.group_send(
-                        self.room_group_name,
-                        {
-                            'type': 'send_data',
-                            'data': message_text_data,
-                        }
-                    )
-                    await self.end_game_save()
-                    await self.channel_layer.group_send(
-                        self.room_group_name,
-                        {
-                            'type': 'send_data',
-                            'data': json.dumps({'type': "end_game"})
-                        }
-                    )
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(self.end_game_everyone_dead())
                     return
             if is_fighting_start:
                 imgurl = await sync_generate_image_scenario(self.general_chat, prefolder="message_images")
@@ -459,6 +436,20 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     short_msg = await sync_make_content_shorter(msg)
                     await self.channel_layer.group_send(self.room_group_name, {'type': 'check_update_is_dead'})
                     message_text_data2 = await self.createMessage(self.general_chat, msg, short_content=short_msg, character=characterDM)
+                    # печальный конец
+                    if await self.is_everyone_dead(characters):
+                        for txt_data in [message_text_data, message_text_data2]:
+                            await self.channel_layer.group_send(
+                                self.room_group_name,
+                                {
+                                    'type': 'send_data',
+                                    'data': txt_data,
+                                }
+                            )
+                            await asyncio.sleep(WAIT_FIGHT_SECONDS)
+                        loop = asyncio.get_event_loop()
+                        loop.create_task(self.end_game_everyone_dead())
+                        return
             elif await sync_check_next_part(self.general_chat):
                 await self.go_next_part()
                 imgurl = await sync_generate_image_scenario(self.general_chat, prefolder="message_images")
@@ -512,6 +503,18 @@ class RoomConsumer(AsyncWebsocketConsumer):
                         'go_next_turn': not is_fighting_start
                     }
                 )
+                
+        if is_fighting_end:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'send_data',
+                    'data': json.dumps({
+                        'type': 'update_is_blocked_by_fighting_status',
+                        'status':  False
+                    }),
+                }
+            )
     
     async def next_fight_turn(self, event):
         if self.character.id != event["character_id_turn"]:
@@ -523,19 +526,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
         is_stabilized_now = False
         # печальный конец
         if await self.is_everyone_dead(characters):
-            msg = await sync_generate_failed_battle(self.general_chat)
-            message_text_data = await self.createMessage(self.general_chat, msg, character=characterDM)
-            
-            imgurl = await sync_generate_image_scenario(self.general_chat, prefolder="message_images")
-            message_text_data = await self.set_message_image(message_text_data, imgurl)
-            
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'send_data',
-                    'data': message_text_data,
-                }
-            )
+            loop = asyncio.get_event_loop()
+            loop.create_task(self.end_game_everyone_dead())
             return
         #await sync_print(self.character.id, event["character_id_turn"])
         msg = None
@@ -573,7 +565,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
             )
         
         if (msg is not None or event['go_next_turn']) and not is_stabilized_now:
-            await self.go_next_fight_round()
+            await self.go_next_fight_round(self.general_chat)
             initiative_order = await self.get_initiative_order(self.general_chat)
             await sync_print('current initiative', initiative_order)
             if initiative_order[0] == -1:
@@ -589,6 +581,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     }
                 )
                 await asyncio.sleep(WAIT_FIGHT_SECONDS)
+                # печальный конец
+                if await self.is_everyone_dead(characters):
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(self.end_game_everyone_dead())
+                    return
                 # обновление порядка инициатив, так как походил монстр
                 initiative_order = await self.get_initiative_order(self.general_chat)
             await sync_print('current2 initiative', initiative_order)
@@ -618,6 +615,25 @@ class RoomConsumer(AsyncWebsocketConsumer):
         else:
             await self.send(text_data=json.dumps({"type": "update_is_dead_status", "status": False}))
     
+    async def end_game_everyone_dead(self):
+        msg = await sync_generate_failed_battle(self.general_chat)
+        message_text_data = await self.createMessage(self.general_chat, msg, character=characterDM)
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'send_data',
+                'data': message_text_data,
+            }
+        )
+        await self.end_game_save()
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'send_data',
+                'data': json.dumps({'type': "end_game"})
+            }
+        )
+    
     @sync_to_async
     def set_message_image(self, message_text_data, imgurl):
         message_text_data = json.loads(message_text_data)
@@ -630,7 +646,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
             
     @sync_to_async
     def is_end_fight(self, chat):
+        #TODO
+        chat.room.scenario.scenariostate.refresh_from_db()
+        chat.room.scenario.scenariostate.fight_state.refresh_from_db()
         fight_state = chat.room.scenario.scenariostate.fight_state
+        print(fight_state.health)
         if fight_state.health <= 0:
             chat.room.scenario.scenariostate.fight_state = None
             chat.room.scenario.scenariostate.save()
@@ -646,11 +666,13 @@ class RoomConsumer(AsyncWebsocketConsumer):
         return self.character.stats.current_hit
     
     @sync_to_async
-    def get_is_fighting(self):
-        return self.general_chat.room.scenario.scenariostate.fight_state is not None
+    def get_is_fighting(self, chat):
+        return chat.room.scenario.scenariostate.fight_state is not None
             
     @sync_to_async
     def is_everyone_dead(self, characters):
+        for char in characters:
+            char.refresh_from_db()
         return all([char == characterDM or (char.stats.armour == 0 and char.stats.failure >= 3) for char in characters])
     
     @sync_to_async
@@ -661,9 +683,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
         self.character.stats.save()
     
     @sync_to_async
-    def go_next_fight_round(self):
-        self.general_chat.room.scenario.scenariostate.refresh_from_db()
-        fight_state = self.general_chat.room.scenario.scenariostate.fight_state
+    def go_next_fight_round(self, chat):
+        fight_state = chat.room.scenario.scenariostate.fight_state
         initiative_order = fight_state.get_initiative_order()
         initiative_order = initiative_order[1:] + [initiative_order[0]]
         fight_state.initiative_order = " ".join(map(str, initiative_order))
@@ -715,7 +736,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 cannot_make_prompt = "У игрока не хватает необходимых навыков владения магией"
         else:
             need_equipment = check_need_equipment(message)
-            if need_equipment:
+            if need_equipment == 2:
                 if not check_equipment(message, equipment):
                     cannot_make_prompt = "У игрока не хватает необходимых предметов (их нет в 'инвентаре' - но слово 'инвентарь' использовать при генерации не надо)"
             else:

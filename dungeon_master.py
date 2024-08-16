@@ -506,7 +506,7 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
 Добавление за оружие: {int(fighting_hit * 0.05)}
 Добавление за магию: {int(fighting_hit * 0.13)}
 
-Помни, что за какие-то простые запросы (например, "я ударил его мечом") дополнительное количество повреждений должно быть как можно меньше
+Помни, что за какие-то простые запросы (например, "я ударил его мечом") дополнительное количество повреждений должно быть как можно меньше. Также не пиши никаких примеров в [[...]], единственный верный формат: [[число]], причем это число - СУММА повреждений
 """
     elif not any(cannot_make_prompt):
         if prompt_class == 4:
@@ -841,7 +841,7 @@ def start_fight(general_chat):
     
     initiative_order = [(pair[1] if pair[1] != len (characters) else -1, pair[0]) for pair in inititatives] # if it is monster than -1
     
-    cube_class = random.choices([4, 6, 8, 10, 12, 16, 20], weights=[5, 10, 35, 50, 65, 35, 20])[0]
+    cube_class = random.choices([4, 6, 8, 10, 12, 16, 20], weights=[5, 10, 45, 60, 45, 20, 10])[0]
     
     
     prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Герои приняли бой с кем-то. Тебе необходимо будет выяснить, с кем именно они борются
@@ -917,7 +917,7 @@ def generate_fight_turn(general_chat):
     messages += get_messages_history_prompt(general_chat, characters=characters, use_is_fighting=True)
     
     prompt_last = f"""
-Помни, что ты - {fight_state.monster_info} в игре Dungeon&Dragons. Тебе необходимо свой ход в битве, а именно описать его. Ты не должен кидать никаких кубиков - только генерировать описание своих действий"""
+Помни, что ты - {fight_state.monster_info} в игре Dungeon&Dragons. Тебе необходимо свой ход в битве, а именно описать его. Ты не должен кидать никаких кубиков и писать, сколько урона ты нанес - только генерировать описание своих действий"""
     messages += [{"role": "system", "content": prompt_last}]
     txt = generate_text_by_msgs(messages=messages)
     

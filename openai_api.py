@@ -5,6 +5,7 @@ from PIL import Image
 from secret_data import OPENAI_API_KEY
 import json
 import uuid
+import openai
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 tokens_used = json.load(open("tokens_used"))
@@ -55,14 +56,21 @@ def generate_image(txt, model="dall-e-3", res="256x256", outformat="b64"):
         prompt = "Переведи следующий текст на английский:\n" + txt
         txt = generate_text(prompt)
     sz = "1024x1024" if model != "dall-e-2" else "256x256"
-    response = client.images.generate(
-        model=model,
-        prompt=txt,
-        quality="standard",
-        size=sz,
-        n=1,
-        response_format="b64_json"
-    )
+    try:
+        response = client.images.generate(
+            model=model,
+            prompt=txt,
+            quality="standard",
+            size=sz,
+            n=1,
+            response_format="b64_json"
+        )
+        b64 = response.data[0].b64_json
+    except openai.BadRequestError:
+        img = Image.open("media/safety.png")
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        b64 = base64.b64encode(buffered.getvalue()).decode('ascii')
     
     if model not in tokens_used:
         tokens_used[model] = 0
@@ -71,7 +79,7 @@ def generate_image(txt, model="dall-e-3", res="256x256", outformat="b64"):
         json.dump(tokens_used, f)
 
     if sz != res:
-        img = Image.open(BytesIO(base64.b64decode(response.data[0].b64_json)))
+        img = Image.open(BytesIO(base64.b64decode(b64)))
         img.thumbnail(tuple(map(int, res.split("x"))), Image.ANTIALIAS)
         if outformat == "b64":
             buffered = BytesIO()
@@ -81,8 +89,8 @@ def generate_image(txt, model="dall-e-3", res="256x256", outformat="b64"):
         return img
 
     if outformat == "b64":
-        return response.data[0].b64_json
-    img = Image.open(BytesIO(base64.b64decode(response.data[0].b64_json)))
+        return b64
+    img = Image.open(BytesIO(base64.b64decode(b64)))
     return img
 
 def generate_image_with_url(*args, prefolder="", outsize=None, **kwargs):
