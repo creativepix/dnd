@@ -180,7 +180,6 @@ class WaitingConsumer(AsyncWebsocketConsumer):
         :param event: Events to pick up
         """
         connected_character = await get_character(event["character_id"])
-        # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'type': 'connected',
             'character_image': connected_character.image.url,
@@ -236,7 +235,6 @@ class WaitingConsumer(AsyncWebsocketConsumer):
             info[char.id]["new_messages_count"] = 0
             friends_chat.characters.add(char)
         friends_chat.save()
-        
         
         #one2one chats
         for char1, char2 in itertools.combinations(characters, 2):
@@ -379,7 +377,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
         
         message_text_data, message_img_data, message_text_data2, imgurl = None, "", None, ""
         if not chat.is_general:
-            #TODO
             msg = await sync_generate_answer(characters, self.general_chat, chat, prompt_class=3)
         else:
             msg = await self.generate_action_answer(characters, message, chat, is_fighting=is_fighting, fighting_hit=await self.get_current_hit())
@@ -407,8 +404,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 return
         
             monster_info = await get_monsert_info(chat)
-            # refresh from db fight state for health in is_end_fight
-            # await sync_print("------>", is_fighting, await self.is_end_fight(self.general_chat))
             if is_fighting and await self.is_end_fight(self.general_chat):
                 is_fighting_end = True
                 is_fighting = False
@@ -456,9 +451,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 message_text_data = await self.set_message_image(message_text_data, imgurl)
         else:
             message_text_data = await self.createMessage(chat, msg, short_content=short_msg, character=characterDM)
-            
-            
-        #if not chat.is_general:
+
         await self.set_chat_block_status(chat, False)
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -503,7 +496,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                         'go_next_turn': not is_fighting_start
                     }
                 )
-                
+
         if is_fighting_end:
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -529,7 +522,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
             loop = asyncio.get_event_loop()
             loop.create_task(self.end_game_everyone_dead())
             return
-        #await sync_print(self.character.id, event["character_id_turn"])
         msg = None
         if stats.failure >= 3:
             msg = f"К сожалению, персонаж {self.character.name} уже покинул наш мир и пропускает ход"
@@ -646,7 +638,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
             
     @sync_to_async
     def is_end_fight(self, chat):
-        #TODO
         chat.room.scenario.scenariostate.refresh_from_db()
         chat.room.scenario.scenariostate.fight_state.refresh_from_db()
         fight_state = chat.room.scenario.scenariostate.fight_state
@@ -693,10 +684,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def go_next_part(self):
         current_part = self.room.scenario.scenariostate.current_part
-        #if current_part.is_final:
-        #    #TODO: end game
-        #    print("GAME ENDED")
-        #    return
         scenario_parts = list(self.general_chat.room.scenario.scenariopart_set.all())
         next_part = scenario_parts[scenario_parts.index(current_part) + 1]
         self.room.scenario.scenariostate.current_part = next_part
@@ -835,12 +822,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
 
         if any(out_adding):
             msg = out_adding + msg
-        #equipment_changing = what_equipment_changed(msg)
-        #if equipment_changing[0] == 1:
-        #    cmd = " ".join(equipment_changing[1:])
-        #    equipment = change_equipment(equipment, cmd, self.character.info)
-        #    self.character.stats.equipment = equipment
-        #    self.character.stats.save()
 
         return msg
     

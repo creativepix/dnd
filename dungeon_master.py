@@ -374,7 +374,6 @@ def create_scenario_parts(characters):
         prompt += f"{i}) " + character.info + "\n"
     prompt += "Попытайся сделать так, чтобы сценарий понравился всем. Помни, что последняя часть сценария должна быть завершающей, не подразумевающей продолжение (но оформляй её также, как и остальные, то есть [число], а НЕ [завершающая])!"
     txt = generate_text(prompt, model="gpt-3.5-turbo")
-    #print(txt)
     parts = extract_parts(txt)
     return parts
 
@@ -458,7 +457,6 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
     elif prompt_class == 4:
         insertion = 'продолжение сюжета'
     else:
-        #if prompt_class == 3:
         insertion = 'ответ на вопрос пользователя, но без генерации продолжения сценария' 
     
     prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо сгенерировать {insertion}.
@@ -469,10 +467,6 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
 Сейчас игроки находятся в этой части сюжета:
 {current_part.content}
 """
-#    if not is_fighting or is_fighting_end:
-#        prompt0 += f"""Ты должен учитывать, что игроки двигаются по сюжету в эту сторону:
-#{next_part.content}"""
-
     messages = [{"role": "system", "content": prompt0}]
     messages += get_messages_history_prompt(general_chat, characters=characters)
     
@@ -548,7 +542,6 @@ def generate_answer(characters, general_chat, chat, prompt_class=4, cannot_make_
         fight_state.health = max(0, fight_state.health - hit)
         fight_state.save()
         txt += f"\n\nИтого ты наносишь {hit} урона. Осталось: {fight_state.health}"
-    #print(messages)
     return txt
 
 def check_next_part(general_chat):
@@ -575,9 +568,7 @@ def check_next_part(general_chat):
     prompt_last += """
 Помни, что тебе необходимо понять, перешел ли сюжет к следующей части (или вообще уже её прошел/достиг)."""
     messages += [{"role": "system", "content": prompt_last}]
-    #print(messages)
     out = generate_text_by_msgs(messages=messages)
-    #print(messages)
     try:
         out = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
         print(f'current part: {current_part_ind}, next part?', out)
@@ -686,37 +677,6 @@ def change_equipment(equipment, cmd, character_info):
 
 def need_change_scenario(general_chat):
     return 1
-#    "0 - no; 1 - yes"
-#    prompt0 = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо будет понять, приведут ли последние действия героев к изменению сюжета."""
-#    messages = [{"role": "system", "content": prompt0}]
-#    messages += get_messages_history_prompt(general_chat)
-#    
-#    scenario_parts = list(general_chat.room.scenario.scenariopart_set.all())
-#    current_part = general_chat.room.scenario.scenariostate.current_part
-#    current_part_ind = scenario_parts.index(current_part)
-#    scenario_prompt = """Тебе даны следующие части сюжета (каждое начало части в формате [часть] ):
-#"""
-#    for i, scenario_part in enumerate(scenario_parts[current_part_ind:min(len(scenario_parts), current_part_ind+CHANGING_SCENARIO_PARTS_N)], start=current_part_ind+1):
-#        scenario_prompt += f"[{i}]\n{scenario_part.content}\n"
-#    messages += [{"role": "system", "content": scenario_prompt}]
-#    last_prompt = """Тебе необходимо понять, изменится ли сюжет после действий героев или нет. Ответь в формате:
-#[[0]] - сценарий не изменится (например, идет какой-то разговор, игроки куда-то свернули/пришли)
-#[[1]] - сценарий изменится (например, игроки нарушают порядок действий, решают идти иным путем)
-#
-#Пример вывода:
-#[[0]]
-#"""
-#    messages += [{"role": "system", "content": last_prompt}]
-#    out = generate_text_by_msgs(messages)
-#    try:
-#        out = int(re.findall(r'\[\[(\d+)\]\]', out)[0])
-#        print(f'scenario change:', out)
-#        return out
-#    except Exception:
-#        print(f'ERROR. scenario change: {current_part_ind}, out:', out)
-#        return 0
-#    txt = generate_text_by_msgs(messages=messages)
-#    print(messages)
 
 def combine_scenarios(content_scenario1, content_scenario2):
     prompt = f"""Ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо объединить две части сюжета в одну. Ты также можешь ужалять ненужную информацию, которая никак на сюжет не влияет
@@ -748,7 +708,6 @@ def change_scenario(general_chat, throws_skills_prompt_adding=""):
     current_part_ind = scenario_parts.index(current_part)
     if any(throws_skills_prompt_adding):
         messages += [{"role": "system", "content": throws_skills_prompt_adding}]
-    #messages += [{"role": "system", "content": scenario_prompt}]
     last_prompt = f"""Тебе необходимо изменить сценарий так, чтобы он подстраивался под последние события. Все части должны быть описаны ОЧЕНЬ кратко.
 Часть сюжета на которой остановились:
 {current_part.content}
@@ -757,9 +716,6 @@ def change_scenario(general_chat, throws_skills_prompt_adding=""):
 {scenario_parts[current_part_ind + 1].content}
 """
     messages += [{"role": "system", "content": last_prompt}]
-    #for i, scenario_part in enumerate(scenario_parts[current_part_ind:min(len(scenario_parts), current_part_ind+CHANGING_SCENARIO_PARTS_N+1)], start=current_part_ind+1):
-    #    messages += [{"role": "user", "content": f"[{i}]\n{scenario_part.content}\n"}]
-    #print(messages)
     txt = generate_text_by_msgs(messages=messages, model="gpt-4o")
     txt = make_content_shorter(combine_scenarios(scenario_parts[current_part_ind+1].content, txt))
     print("New scenario before:", scenario_parts[current_part_ind+1].content)
@@ -767,25 +723,13 @@ def change_scenario(general_chat, throws_skills_prompt_adding=""):
     scenario_parts[current_part_ind+1].save()
     print("Current part:", current_part.content)
     print("New scenario parts:", scenario_parts[current_part_ind+1].content)
-    #new_parts_content = extract_parts(txt)[1:]
-    #for i in range(len(new_parts_content)):
-    #    new_parts_content[i] = make_content_shorter(new_parts_content[i])
-    #print("Current part:", current_part.content)
-    ##shorted_new_parts_content = []
-    #print("New scenario parts:", txt)
-    #for new_scenario_part_content, scenario_part in zip(new_parts_content, scenario_parts[current_part_ind+1:min(len(scenario_parts), current_part_ind+CHANGING_SCENARIO_PARTS_N+1)]):
-    #    #scenario_part.content = make_content_shorter(new_scenario_part_content)
-    #    scenario_part.content = new_scenario_part_content.replace("...", "")
-    #    scenario_part.save()
-    #    #shorted_new_parts_content.append(scenario_part.content)
-    #print("New short scenario parts:", shorted_new_parts_content)
 
 def is_starting_fight(general_chat):
     """0 - no; 1 - yes"""
     characters = general_chat.characters.all()
     prompt0 = f"Ты - Dungeon Master в игре Dungeon&Dragons. Тебе будут доступны все действия героев до этого момента. Тебе необходимо понять, последние действия игроков начнут какую-то драку/битву или нет."
     messages = [{"role": "system", "content": prompt0}]
-    messages += get_messages_history_prompt(general_chat, maxn=FIGHT_MESSAGES_LAST_INFO_N, characters=characters) # use_is_fighting dont need?
+    messages += get_messages_history_prompt(general_chat, maxn=FIGHT_MESSAGES_LAST_INFO_N, characters=characters)
     
     prompt_last = f"""
 Помни, что ты - Dungeon Master в игре Dungeon&Dragons. Тебе необходимо понять, последние действия игроков начнут какую-то драку/битву или нет.
@@ -862,7 +806,6 @@ def start_fight(general_chat):
 {get_characters_info_prompt(characters)}
 """
     messages += [{"role": "system", "content": prompt_last}]
-    #print(messages)
     monster_info = generate_text_by_msgs(messages=messages)
     print("monster_info", monster_info)
     try:
