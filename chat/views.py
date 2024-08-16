@@ -11,7 +11,7 @@ from .models import Room, Waiting
 from users.models import Character
 from dungeon_master import characterDM
 
-room_chars_available = "_-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+room_chars_available = "_-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 
 @login_required()
 def chat_home(request):

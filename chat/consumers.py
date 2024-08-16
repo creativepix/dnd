@@ -297,6 +297,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             await self.accept()
+            await self.update_failure_success(self.character)
         else:
             await self.send({"close": True})
 
@@ -361,6 +362,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
     async def generate_answer(self, message, chat):
         if chat.is_friends:
             return
+        await self.update_failure_success(self.character)
         is_fighting_end = False
         is_fighting_start = False
         is_fighting = await self.get_is_fighting(chat)
@@ -555,6 +557,12 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     'data': message_text_data,
                 }
             )
+
+        # печальный конец после спасброска
+        if await self.is_everyone_dead(characters):
+            loop = asyncio.get_event_loop()
+            loop.create_task(self.end_game_everyone_dead())
+            return
         
         if (msg is not None or event['go_next_turn']) and not is_stabilized_now:
             await self.go_next_fight_round(self.general_chat)
@@ -625,6 +633,16 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 'data': json.dumps({'type': "end_game"})
             }
         )
+
+    @sync_to_async
+    def update_failure_success(self, char):
+        if char.stats.armour > 0:
+            char.stats.failure = 0
+            char.stats.success = 0
+            char.stats.save()
+        if char.stats.armour < 0:
+            char.stats.armour = 0
+            char.stats.save()
     
     @sync_to_async
     def set_message_image(self, message_text_data, imgurl):
@@ -664,6 +682,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
     def is_everyone_dead(self, characters):
         for char in characters:
             char.refresh_from_db()
+            char.stats.refresh_from_db()
         return all([char == characterDM or (char.stats.armour == 0 and char.stats.failure >= 3) for char in characters])
     
     @sync_to_async
