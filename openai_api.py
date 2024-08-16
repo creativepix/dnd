@@ -6,9 +6,13 @@ from secret_data import OPENAI_API_KEY
 import json
 import uuid
 import openai
+import os
 
 client = OpenAI(api_key=OPENAI_API_KEY)
-tokens_used = json.load(open("tokens_used"))
+if os.exists("tokens_used"):
+    tokens_used = json.load(open("tokens_used"))
+else:
+    tokens_used = {}
 
 def generate_text(txt, system_txt=None, model="gpt-4o-mini", max_tokens=None):
     global tokens_used
