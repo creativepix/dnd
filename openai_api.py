@@ -9,7 +9,7 @@ import openai
 import os
 
 client = OpenAI(api_key=OPENAI_API_KEY)
-if os.exists("tokens_used"):
+if os.path.exists("tokens_used"):
     tokens_used = json.load(open("tokens_used"))
 else:
     tokens_used = {}
